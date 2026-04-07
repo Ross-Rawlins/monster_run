@@ -15,6 +15,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     runScrollSpeed: 360,
     airControlMultiplier: 0.85,
     runJumpDistanceMultiplier: 1.3,
+    airborneMomentumRetention: 0.992,
   }
 
   private keys!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -34,6 +35,8 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   private lastTapAtMs = 0
 
   private runDirection: MoveDirection = 0
+
+  private airborneScrollVelocity = 0
 
   constructor() {
     super({ key: SCENE_KEYS.INFINITE_RUNNER })
@@ -139,20 +142,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.player.refreshAnimationState()
 
     const body = this.player.body as Phaser.Physics.Arcade.Body
-    const isRunning = this.player.isRunning()
-    const baseSpeed = isRunning
-      ? this.movementConfig.runScrollSpeed
-      : this.movementConfig.walkScrollSpeed
-    const groundedMultiplier = body.blocked.down
-      ? 1
-      : this.movementConfig.airControlMultiplier
-    const runJumpDistanceMultiplier =
-      !body.blocked.down && isRunning
-        ? this.movementConfig.runJumpDistanceMultiplier
-        : 1
-
-    const scrollSpeed =
-      direction * baseSpeed * groundedMultiplier * runJumpDistanceMultiplier
+    const isGrounded = body.blocked.down
+    const isRunIntent =
+      this.runDirection !== 0 && direction === this.runDirection
+    const scrollSpeed = this.calculateScrollSpeed(direction, isGrounded)
     this.previewScrollX = Math.max(
       0,
       this.previewScrollX + scrollSpeed * this.game.loop.delta * 0.001
@@ -164,7 +157,34 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
-    this.updateTuningHud(direction, isRunning, body.blocked.down, scrollSpeed)
+    this.updateTuningHud(direction, isRunIntent, isGrounded, scrollSpeed)
+  }
+
+  private calculateScrollSpeed(
+    direction: MoveDirection,
+    isGrounded: boolean
+  ): number {
+    const isRunIntent =
+      this.runDirection !== 0 && direction === this.runDirection
+    const baseSpeed = isRunIntent
+      ? this.movementConfig.runScrollSpeed
+      : this.movementConfig.walkScrollSpeed
+
+    if (isGrounded) {
+      this.airborneScrollVelocity = direction * baseSpeed
+      return this.airborneScrollVelocity
+    }
+
+    if (direction === 0) {
+      this.airborneScrollVelocity *= this.movementConfig.airborneMomentumRetention
+    } else {
+      this.airborneScrollVelocity =
+        direction * baseSpeed * this.movementConfig.airControlMultiplier
+    }
+
+    return isRunIntent
+      ? this.airborneScrollVelocity * this.movementConfig.runJumpDistanceMultiplier
+      : this.airborneScrollVelocity
   }
 
   private updateTuningHud(
@@ -187,6 +207,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
       `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
       `airControlMultiplier=${config.airControlMultiplier} runJumpDistanceMultiplier=${config.runJumpDistanceMultiplier}`,
+      `airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)} airVel=${this.airborneScrollVelocity.toFixed(1)}`,
     ])
   }
 
