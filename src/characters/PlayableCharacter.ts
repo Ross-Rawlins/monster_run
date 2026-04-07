@@ -3,7 +3,7 @@ import { CharacterState } from './types'
 import { AbstractCharacterDefinition } from './AbstractCharacterDefinition'
 
 export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
-  private definition: AbstractCharacterDefinition
+  private readonly definition: AbstractCharacterDefinition
 
   private readonly spawnPoint: Phaser.Math.Vector2
 
@@ -74,7 +74,9 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
       return
     }
 
-    const runSpeedMultiplier = this.runEnabled ? 1.45 : 1
+    const runSpeedMultiplier = this.runEnabled
+      ? this.definition.runSpeedMultiplier
+      : 1
     body.setVelocityX(
       direction * this.definition.moveSpeed * runSpeedMultiplier
     )
@@ -98,7 +100,8 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
       return
     }
 
-    body.setVelocityY(-this.definition.jumpVelocity)
+    const jumpBoost = this.runEnabled ? this.definition.runJumpBoost : 1
+    body.setVelocityY(-this.definition.jumpVelocity * jumpBoost)
   }
 
   public triggerAction(

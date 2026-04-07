@@ -36,4 +36,6 @@ export abstract class AbstractCharacterDefinition implements CharacterDefinition
   readonly facingRight: boolean = false
   readonly canJump: boolean = true
   readonly runThreshold?: number = undefined
+  readonly runSpeedMultiplier: number = 1.45
+  readonly runJumpBoost: number = 1.18
 }

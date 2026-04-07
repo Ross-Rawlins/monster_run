@@ -4,10 +4,18 @@ import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
 import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager'
 
-export default class InfiniteRunnerScene extends Phaser.Scene {
-  private readonly worldWidthMultiplier = 8
+type MoveDirection = -1 | 0 | 1
 
-  private readonly lockScreenRatio = 1 / 3
+export default class InfiniteRunnerScene extends Phaser.Scene {
+  // Runner movement tuning for pixel-perfect iteration.
+  private readonly movementConfig = {
+    lockScreenRatio: 1 / 3,
+    runDoubleTapWindowMs: 300,
+    walkScrollSpeed: 210,
+    runScrollSpeed: 360,
+    airControlMultiplier: 0.85,
+    runJumpDistanceMultiplier: 1.3,
+  }
 
   private keys!: Phaser.Types.Input.Keyboard.CursorKeys
 
@@ -19,6 +27,12 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private previewScrollX = 0
 
+  private lastTapDirection: MoveDirection = 0
+
+  private lastTapAtMs = 0
+
+  private runDirection: MoveDirection = 0
+
   constructor() {
     super({ key: SCENE_KEYS.INFINITE_RUNNER })
   }
@@ -26,20 +40,19 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   public create(): void {
     const width = this.scale.width
     const height = this.scale.height
-    const worldWidth = width * this.worldWidthMultiplier
     const gridHeight = height / 14
     const groundTop = height - gridHeight * 3
 
     this.cameras.main.setBackgroundColor('#52997c')
     this.parallaxManager = new ParallaxBackgroundManager(this, width, height)
-    this.physics.world.setBounds(0, 0, worldWidth, height)
-    this.cameras.main.setBounds(0, 0, worldWidth, height)
+    this.physics.world.setBounds(0, 0, width, height)
+    this.cameras.main.setBounds(0, 0, width, height)
 
     this.ground = this.add
       .rectangle(
-        worldWidth * 0.5,
+        width * 0.5,
         groundTop + (height - groundTop) * 0.5,
-        worldWidth,
+        width,
         height - groundTop,
         0x364859
       )
@@ -70,7 +83,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.add.text(
       16,
       16,
-      'Left/Right = Move Knight | Up/Space = Jump | R = Restart',
+      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | R = Restart',
       {
         fontFamily: 'monospace',
         fontSize: '12px',
@@ -91,13 +104,8 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   public update(): void {
     const cursorKeys = this.keys
-    let direction = 0
-
-    if (cursorKeys.left.isDown) {
-      direction = -1
-    } else if (cursorKeys.right.isDown) {
-      direction = 1
-    }
+    const direction = this.getDirectionFromInput(cursorKeys)
+    this.updateRunState(cursorKeys, direction)
 
     this.player.applyHorizontalInput(direction)
 
@@ -110,13 +118,77 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
     this.player.refreshAnimationState()
 
-    const camera = this.cameras.main
-    const lockOffsetX = this.scale.width * this.lockScreenRatio
-    const maxScrollX = Math.max(0, this.physics.world.bounds.width - camera.width)
-    camera.scrollX = Phaser.Math.Clamp(this.player.x - lockOffsetX, 0, maxScrollX)
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    const isRunning = this.player.isRunning()
+    const baseSpeed = isRunning
+      ? this.movementConfig.runScrollSpeed
+      : this.movementConfig.walkScrollSpeed
+    const groundedMultiplier = body.blocked.down
+      ? 1
+      : this.movementConfig.airControlMultiplier
+    const runJumpDistanceMultiplier =
+      !body.blocked.down && isRunning
+        ? this.movementConfig.runJumpDistanceMultiplier
+        : 1
 
-    this.previewScrollX = camera.scrollX
+    const scrollSpeed =
+      direction * baseSpeed * groundedMultiplier * runJumpDistanceMultiplier
+    this.previewScrollX = Math.max(
+      0,
+      this.previewScrollX + scrollSpeed * this.game.loop.delta * 0.001
+    )
+
+    const lockOffsetX = this.scale.width * this.movementConfig.lockScreenRatio
+    this.player.setX(lockOffsetX)
+    body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
+  }
+
+  private getDirectionFromInput(
+    cursorKeys: Phaser.Types.Input.Keyboard.CursorKeys
+  ): MoveDirection {
+    if (cursorKeys.left.isDown) {
+      return -1
+    }
+
+    if (cursorKeys.right.isDown) {
+      return 1
+    }
+
+    return 0
+  }
+
+  private updateRunState(
+    cursorKeys: Phaser.Types.Input.Keyboard.CursorKeys,
+    direction: MoveDirection
+  ): void {
+    const leftTapPressed = Phaser.Input.Keyboard.JustDown(cursorKeys.left)
+    const rightTapPressed = Phaser.Input.Keyboard.JustDown(cursorKeys.right)
+
+    if (leftTapPressed || rightTapPressed) {
+      const tappedDirection: -1 | 1 = rightTapPressed ? 1 : -1
+      const tapDeltaMs = this.time.now - this.lastTapAtMs
+      const isDoubleTap =
+        this.lastTapDirection === tappedDirection &&
+        tapDeltaMs <= this.movementConfig.runDoubleTapWindowMs
+
+      this.lastTapDirection = tappedDirection
+      this.lastTapAtMs = this.time.now
+
+      if (isDoubleTap) {
+        this.runDirection = tappedDirection
+        this.player.setRunEnabled(true)
+      }
+    }
+
+    const shouldDisableRun =
+      direction === 0 ||
+      (this.runDirection !== 0 && direction !== this.runDirection)
+
+    if (shouldDisableRun) {
+      this.runDirection = 0
+      this.player.setRunEnabled(false)
+    }
   }
 }
