@@ -11,10 +11,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   private readonly movementConfig = {
     lockScreenRatio: 1 / 3,
     runDoubleTapWindowMs: 300,
-    walkScrollSpeed: 210,
-    runScrollSpeed: 360,
+    walkScrollSpeed: 270,
+    runScrollSpeed: 500,
     airControlMultiplier: 0.85,
-    runJumpDistanceMultiplier: 1.3,
+    runJumpDistanceMultiplier: 1.65,
     airborneMomentumRetention: 0.992,
   }
 
@@ -176,14 +176,16 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     }
 
     if (direction === 0) {
-      this.airborneScrollVelocity *= this.movementConfig.airborneMomentumRetention
+      this.airborneScrollVelocity *=
+        this.movementConfig.airborneMomentumRetention
     } else {
       this.airborneScrollVelocity =
         direction * baseSpeed * this.movementConfig.airControlMultiplier
     }
 
     return isRunIntent
-      ? this.airborneScrollVelocity * this.movementConfig.runJumpDistanceMultiplier
+      ? this.airborneScrollVelocity *
+          this.movementConfig.runJumpDistanceMultiplier
       : this.airborneScrollVelocity
   }
 
