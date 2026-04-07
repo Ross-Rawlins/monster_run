@@ -25,6 +25,10 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
 
   private runEnabled = false
 
+  private readonly runSpeedMultiplier = 1.85
+
+  private forcedGroundMotionState?: 'move' | 'run'
+
   constructor(
     scene: Phaser.Scene,
     x: number,
@@ -74,9 +78,7 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
       return
     }
 
-    const runSpeedMultiplier = this.runEnabled
-      ? this.definition.runSpeedMultiplier
-      : 1
+    const runSpeedMultiplier = this.runEnabled ? this.runSpeedMultiplier : 1
     body.setVelocityX(
       direction * this.definition.moveSpeed * runSpeedMultiplier
     )
@@ -146,6 +148,7 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     this.isPerformingAction = false
     this.isDead = false
     this.currentActionState = undefined
+    this.forcedGroundMotionState = undefined
     this.currentState = 'idle'
     this.setPosition(this.spawnPoint.x, this.spawnPoint.y)
     this.setFlipX(false)
@@ -175,6 +178,10 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     if (!body.blocked.down) {
       // Non-jumpers show walk cycle when falling
       nextState = canJump ? 'jump' : 'move'
+    } else if (this.forcedGroundMotionState === 'run') {
+      nextState = 'run'
+    } else if (this.forcedGroundMotionState === 'move') {
+      nextState = 'move'
     } else if (
       this.runEnabled &&
       speedX > 5 &&
@@ -223,9 +230,17 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     this.runEnabled = enabled
   }
 
+  public setForcedGroundMotionState(state?: 'move' | 'run'): void {
+    this.forcedGroundMotionState = state
+  }
+
   public isRunning(): boolean {
     const body = this.body as Phaser.Physics.Arcade.Body
-    return this.runEnabled && body.blocked.down && Math.abs(body.velocity.x) > 5
+    return (
+      (this.forcedGroundMotionState === 'run' ||
+        (this.runEnabled && Math.abs(body.velocity.x) > 5)) &&
+      body.blocked.down
+    )
   }
 
   private playAnimationState(state: CharacterState, force = false): void {

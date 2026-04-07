@@ -119,6 +119,14 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     const direction = this.getDirectionFromInput(cursorKeys)
     this.updateRunState(cursorKeys, direction)
 
+    if (direction === 0) {
+      this.player.setForcedGroundMotionState()
+    } else if (this.runDirection === direction) {
+      this.player.setForcedGroundMotionState('run')
+    } else {
+      this.player.setForcedGroundMotionState('move')
+    }
+
     this.player.applyHorizontalInput(direction)
 
     if (
