@@ -3,12 +3,17 @@ import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
 import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager'
+import { TerrainManager } from '../managers/TerrainManager'
 
 type MoveDirection = -1 | 0 | 1
 
 interface RunnerKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
   attack: Phaser.Input.Keyboard.Key
   attack3: Phaser.Input.Keyboard.Key
+  debugSeed: Phaser.Input.Keyboard.Key
+  debugTerrain: Phaser.Input.Keyboard.Key
+  debugGrid: Phaser.Input.Keyboard.Key
+  rerollTerrain: Phaser.Input.Keyboard.Key
   reset: Phaser.Input.Keyboard.Key
 }
 
@@ -29,7 +34,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private player!: PlayableCharacter
 
-  private ground!: Phaser.GameObjects.Rectangle
+  private terrainManager!: TerrainManager
 
   private tuningHud!: Phaser.GameObjects.Text
 
@@ -43,6 +48,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private airborneScrollVelocity = 0
 
+  private deterministicTerrainDebug = false
+
+  private terrainDebugSeed = 1337
+
   constructor() {
     super({ key: SCENE_KEYS.INFINITE_RUNNER })
   }
@@ -50,35 +59,23 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   public create(): void {
     const width = this.scale.width
     const height = this.scale.height
-    const gridHeight = height / 14
-    const groundTop = height - gridHeight * 3
 
     this.cameras.main.setBackgroundColor('#52997c')
     this.parallaxManager = new ParallaxBackgroundManager(this, width, height)
+    this.terrainManager = new TerrainManager(this, width, height)
     this.physics.world.setBounds(0, 0, width, height)
     this.cameras.main.setBounds(0, 0, width, height)
-
-    this.ground = this.add
-      .rectangle(
-        width * 0.5,
-        groundTop + (height - groundTop) * 0.5,
-        width,
-        height - groundTop,
-        0x364859
-      )
-      .setDepth(10)
-
-    this.physics.add.existing(this.ground, true)
 
     const knight = CharacterRegistry.getById('knight')
     this.player = new PlayableCharacter(
       this,
       width * 0.25,
-      groundTop - gridHeight * 1.5,
+      this.terrainManager.getSpawnSurfaceY() - 96,
       knight
     )
     this.player.setDepth(20)
-    this.physics.add.collider(this.player, this.ground)
+    this.terrainManager.bindPlayer(this.player)
+    this.terrainManager.update(0)
 
     this.cameras.main.scrollX = 0
 
@@ -96,13 +93,17 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       space: Phaser.Input.Keyboard.KeyCodes.SPACE,
       attack: Phaser.Input.Keyboard.KeyCodes.A,
       attack3: Phaser.Input.Keyboard.KeyCodes.F,
+      debugSeed: Phaser.Input.Keyboard.KeyCodes.G,
+      debugTerrain: Phaser.Input.Keyboard.KeyCodes.T,
+      debugGrid: Phaser.Input.Keyboard.KeyCodes.V,
+      rerollTerrain: Phaser.Input.Keyboard.KeyCodes.N,
       reset: Phaser.Input.Keyboard.KeyCodes.R,
     }) as RunnerKeys
 
     this.add.text(
       16,
       16,
-      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart',
+      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart | T = Terrain Debug | G = Seed Mode | N = Reroll | V = Grid View',
       {
         fontFamily: 'monospace',
         fontSize: '12px',
@@ -124,6 +125,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     // Cleanup on shutdown
     this.events.on('shutdown', () => {
       this.parallaxManager.destroy()
+      this.terrainManager.destroy()
     })
   }
 
@@ -135,6 +137,30 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(cursorKeys.reset)) {
       this.scene.restart()
       return
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugTerrain)) {
+      this.terrainManager.setDebugVisible(!this.terrainManager.isDebugVisible())
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugGrid)) {
+      this.terrainManager.toggleGridDebug()
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugSeed)) {
+      this.deterministicTerrainDebug = !this.deterministicTerrainDebug
+      this.resetTerrainRun(
+        this.deterministicTerrainDebug ? this.terrainDebugSeed : undefined
+      )
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.rerollTerrain)) {
+      if (this.deterministicTerrainDebug) {
+        this.terrainDebugSeed += 1
+        this.resetTerrainRun(this.terrainDebugSeed)
+      } else {
+        this.resetTerrainRun()
+      }
     }
 
     this.updateForcedGroundMotionState(direction)
@@ -213,6 +239,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
+    this.terrainManager.update(this.previewScrollX)
     this.updateTuningHud(direction, isRunIntent, isGrounded, scrollSpeed)
   }
 
@@ -259,11 +286,23 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.tuningHud.setText([
       `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
       `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
+      this.terrainManager.getDebugSummary(),
+      `terrainDebug=${this.terrainManager.isDebugVisible() ? 'on' : 'off'} deterministicSeed=${this.deterministicTerrainDebug ? this.terrainDebugSeed : 'off'}`,
       `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
       `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
       `airControlMultiplier=${config.airControlMultiplier} airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)}`,
       `airVel=${this.airborneScrollVelocity.toFixed(1)}`,
     ])
+  }
+
+  private resetTerrainRun(seed?: number): void {
+    this.previewScrollX = 0
+    this.airborneScrollVelocity = 0
+    this.runDirection = 0
+    this.player.setRunEnabled(false)
+    this.player.resetToSpawn()
+    this.terrainManager.reset({ seed })
+    this.terrainManager.update(0)
   }
 
   private getDirectionFromInput(

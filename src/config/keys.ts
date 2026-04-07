@@ -52,6 +52,8 @@ export const RUNNER_ASSET_KEYS = Object.freeze({
   // Tiles/platforms atlas
   TILES_ATLAS: 'tiles-atlas',
   TILES_ATLAS_JSON: 'tiles-atlas-json',
+  TERRAIN_GRASS_TILES_ATLAS: 'terrain-grass-tiles-atlas',
+  TERRAIN_GROUND_TILES_ATLAS: 'terrain-ground-tiles-atlas',
   // Game objects atlas
   OBJECTS_ATLAS: 'objects-atlas',
   OBJECTS_ATLAS_JSON: 'objects-atlas-json',

@@ -1,7 +1,7 @@
 # Monster Run
 
-This project was bootstrapped with [Phaser CLI][1] and adapted into Monster
-Run, a side-scrolling action runner used to validate sprite sheets and gameplay
+This project was bootstrapped with [Phaser CLI][1] and adapted into Monster Run,
+a side-scrolling action runner used to validate sprite sheets and gameplay
 systems.
 
 ## Usage
