@@ -35,14 +35,14 @@ export class KnightDefinition extends AbstractCharacterDefinition {
   readonly initialFrame = 40
   readonly scale = 2
   readonly moveSpeed = 200
-  readonly jumpVelocity = 380
+  readonly jumpVelocity = 430
   override readonly drag = 1200
   override readonly airDrag = 50
   override readonly facingRight = true
   override readonly canJump = true
   override readonly runThreshold = 10
   override readonly runSpeedMultiplier = 1.55
-  override readonly runJumpBoost = 1.22
+  override readonly runJumpBoost = 1.28
 
   readonly body: CharacterBodyDefinition = {
     width: 40,

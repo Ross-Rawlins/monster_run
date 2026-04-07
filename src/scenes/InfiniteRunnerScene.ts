@@ -6,19 +6,25 @@ import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager
 
 type MoveDirection = -1 | 0 | 1
 
+interface RunnerKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
+  attack: Phaser.Input.Keyboard.Key
+  attack3: Phaser.Input.Keyboard.Key
+  reset: Phaser.Input.Keyboard.Key
+}
+
 export default class InfiniteRunnerScene extends Phaser.Scene {
   // Runner movement tuning for pixel-perfect iteration.
   private readonly movementConfig = {
     lockScreenRatio: 1 / 3,
     runDoubleTapWindowMs: 300,
-    walkScrollSpeed: 270,
-    runScrollSpeed: 500,
+    walkScrollSpeed: 320,
+    runScrollSpeed: 560,
     airControlMultiplier: 0.85,
     runJumpDistanceMultiplier: 1.65,
-    airborneMomentumRetention: 0.992,
+    airborneMomentumRetention: 0.985,
   }
 
-  private keys!: Phaser.Types.Input.Keyboard.CursorKeys
+  private keys!: RunnerKeys
 
   private parallaxManager!: ParallaxBackgroundManager
 
@@ -83,12 +89,21 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       throw new Error('Keyboard input is unavailable in InfiniteRunnerScene')
     }
 
-    this.keys = keyboard.createCursorKeys()
+    this.keys = keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.UP,
+      down: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      left: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      space: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      attack: Phaser.Input.Keyboard.KeyCodes.A,
+      attack3: Phaser.Input.Keyboard.KeyCodes.F,
+      reset: Phaser.Input.Keyboard.KeyCodes.R,
+    }) as RunnerKeys
 
     this.add.text(
       16,
       16,
-      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | R = Restart',
+      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart',
       {
         fontFamily: 'monospace',
         fontSize: '12px',
@@ -107,10 +122,6 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       })
       .setDepth(100)
 
-    keyboard.on('keydown-R', () => {
-      this.scene.restart()
-    })
-
     // Cleanup on shutdown
     this.events.on('shutdown', () => {
       this.parallaxManager.destroy()
@@ -121,6 +132,11 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     const cursorKeys = this.keys
     const direction = this.getDirectionFromInput(cursorKeys)
     this.updateRunState(cursorKeys, direction)
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.reset)) {
+      this.scene.restart()
+      return
+    }
 
     if (direction === 0) {
       this.player.setForcedGroundMotionState()
@@ -137,6 +153,22 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       Phaser.Input.Keyboard.JustDown(cursorKeys.space)
     ) {
       this.player.tryJump()
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.attack)) {
+      let attackState: 'attack' | 'attack2' | 'attack3' = 'attack'
+      if (this.player.isGrounded()) {
+        if (this.player.isRunning()) {
+          attackState = 'attack2'
+        }
+      } else {
+        attackState = 'attack3'
+      }
+      this.player.triggerAction(attackState)
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.attack3)) {
+      this.player.triggerAction('attack3')
     }
 
     this.player.refreshAnimationState()
