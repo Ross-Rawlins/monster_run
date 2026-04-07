@@ -25,6 +25,8 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private ground!: Phaser.GameObjects.Rectangle
 
+  private tuningHud!: Phaser.GameObjects.Text
+
   private previewScrollX = 0
 
   private lastTapDirection: MoveDirection = 0
@@ -92,6 +94,16 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       }
     )
 
+    this.tuningHud = this.add
+      .text(16, 42, '', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#dce6ff',
+        backgroundColor: '#1d2f43',
+        padding: { x: 6, y: 4 },
+      })
+      .setDepth(100)
+
     keyboard.on('keydown-R', () => {
       this.scene.restart()
     })
@@ -137,12 +149,33 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       0,
       this.previewScrollX + scrollSpeed * this.game.loop.delta * 0.001
     )
+    this.previewScrollX = Math.round(this.previewScrollX)
 
     const lockOffsetX = this.scale.width * this.movementConfig.lockScreenRatio
-    this.player.setX(lockOffsetX)
+    this.player.setX(Math.round(lockOffsetX))
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
+    this.updateTuningHud(direction, isRunning, body.blocked.down, scrollSpeed)
+  }
+
+  private updateTuningHud(
+    direction: MoveDirection,
+    isRunning: boolean,
+    isGrounded: boolean,
+    scrollSpeed: number
+  ): void {
+    const config = this.movementConfig
+    const activeState =
+      direction === 0 ? 'idle' : isRunning ? 'run' : 'walk'
+
+    this.tuningHud.setText([
+      `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
+      `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
+      `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
+      `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
+      `airControlMultiplier=${config.airControlMultiplier} runJumpDistanceMultiplier=${config.runJumpDistanceMultiplier}`,
+    ])
   }
 
   private getDirectionFromInput(
