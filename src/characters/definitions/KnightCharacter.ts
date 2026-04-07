@@ -51,7 +51,7 @@ export class KnightDefinition extends AbstractCharacterDefinition {
   }
 
   readonly animations: CharacterAnimationSet = {
-    idle: anim('knight-idle', [40, 41, 42, 43, 44, 45, 46], 5, -1),
+    idle: anim('knight-idle', [40, 41, 42, 43, 44, 45, 46], 7, -1),
     move: anim('knight-move', [62, 63, 64, 65, 66, 67, 68, 69], 10, -1),
     jump: anim('knight-jump', [47, 48, 49, 50, 51], 10, 0),
     run: anim('knight-run', [54, 55, 56, 57, 58, 59, 60, 61], 12, -1),

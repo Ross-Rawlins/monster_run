@@ -17,8 +17,8 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   private readonly movementConfig = {
     lockScreenRatio: 1 / 3,
     runDoubleTapWindowMs: 300,
-    walkScrollSpeed: 390,
-    runScrollSpeed: 680,
+    walkScrollSpeed: 460,
+    runScrollSpeed: 780,
     airControlMultiplier: 0.85,
     airborneMomentumRetention: 0.985,
   }
