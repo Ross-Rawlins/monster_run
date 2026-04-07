@@ -20,7 +20,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     walkScrollSpeed: 390,
     runScrollSpeed: 680,
     airControlMultiplier: 0.85,
-    runJumpDistanceMultiplier: 1.75,
+    runJumpDistanceMultiplier: 1,
     airborneMomentumRetention: 0.985,
   }
 
@@ -240,10 +240,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
         direction * baseSpeed * this.movementConfig.airControlMultiplier
     }
 
-    return isRunIntent
-      ? this.airborneScrollVelocity *
-          this.movementConfig.runJumpDistanceMultiplier
-      : this.airborneScrollVelocity
+    return this.airborneScrollVelocity
   }
 
   private updateTuningHud(
