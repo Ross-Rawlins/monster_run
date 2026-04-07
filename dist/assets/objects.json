@@ -1,0 +1,76 @@
+{"frames": [
+
+{
+	"filename": "Objects_16x16_01.png",
+	"frame": {"x":0,"y":0,"w":224,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":224,"h":64},
+	"sourceSize": {"w":224,"h":64}
+},
+{
+	"filename": "Objects_16x32_01.png",
+	"frame": {"x":224,"y":0,"w":256,"h":32},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":32},
+	"sourceSize": {"w":256,"h":32}
+},
+{
+	"filename": "Objects_16x64_01.png",
+	"frame": {"x":0,"y":64,"w":112,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":112,"h":128},
+	"sourceSize": {"w":112,"h":128}
+},
+{
+	"filename": "Objects_32x32_01.png",
+	"frame": {"x":112,"y":64,"w":256,"h":224},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":224},
+	"sourceSize": {"w":256,"h":224}
+},
+{
+	"filename": "Objects_48x48_01.png",
+	"frame": {"x":0,"y":288,"w":384,"h":144},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":144},
+	"sourceSize": {"w":384,"h":144}
+},
+{
+	"filename": "Objects_48x64_01.png",
+	"frame": {"x":0,"y":432,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Objects_64x96_01.png",
+	"frame": {"x":0,"y":496,"w":192,"h":176},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":192,"h":176},
+	"sourceSize": {"w":192,"h":176}
+},
+{
+	"filename": "Objects_96x112_01.png",
+	"frame": {"x":192,"y":496,"w":192,"h":224},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":192,"h":224},
+	"sourceSize": {"w":192,"h":224}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "objects.png",
+	"format": "RGBA8888",
+	"size": {"w":480,"h":720},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:4a1ea900034c75a506c7816f860b3905:ba1e79de64864ebbff81b740de230b25:8d6d12ff4d5234f2a4b19e0a906dbf52$"
+}
+}

@@ -1,0 +1,84 @@
+{"frames": [
+
+{
+	"filename": "Zombie_Hair5_Attack1.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Attack2.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Dead.png",
+	"frame": {"x":768,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Hurt.png",
+	"frame": {"x":1152,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Rise.png",
+	"frame": {"x":0,"y":128,"w":1472,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1472,"h":64},
+	"sourceSize": {"w":1472,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Run.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Stunned.png",
+	"frame": {"x":1152,"y":64,"w":512,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":512,"h":64},
+	"sourceSize": {"w":512,"h":64}
+},
+{
+	"filename": "Zombie_Hair5_Walk.png",
+	"frame": {"x":768,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "zombie_hair5.png",
+	"format": "RGBA8888",
+	"size": {"w":1664,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:fa3f617a06e4f46b6be7e7f417d4b4b4:6c8b6295ac4f1a6a05c7a68fc74fce49:0e81919472d3cda0804b5ef62b70b35c$"
+}
+}

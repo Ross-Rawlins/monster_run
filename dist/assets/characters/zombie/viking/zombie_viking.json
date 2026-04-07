@@ -1,0 +1,84 @@
+{"frames": [
+
+{
+	"filename": "Zombie_Viking_Attack1.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Attack2.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Dead.png",
+	"frame": {"x":768,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Hurt.png",
+	"frame": {"x":1152,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Rise.png",
+	"frame": {"x":0,"y":128,"w":1472,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1472,"h":64},
+	"sourceSize": {"w":1472,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Run.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Stunned.png",
+	"frame": {"x":1152,"y":64,"w":512,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":512,"h":64},
+	"sourceSize": {"w":512,"h":64}
+},
+{
+	"filename": "Zombie_Viking_Walk.png",
+	"frame": {"x":768,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "zombie_warrior_viking.png",
+	"format": "RGBA8888",
+	"size": {"w":1664,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:e04c44c9dc5d338a0e2dcf904344e2fe:b439bd89c931c423ad745541bec6f526:a1f1c5c3e9047e63137418e0305e75a1$"
+}
+}

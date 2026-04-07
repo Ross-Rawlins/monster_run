@@ -1,0 +1,84 @@
+{"frames": [
+
+{
+	"filename": "Zombie_Beanie_Attack1.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Attack2.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Dead.png",
+	"frame": {"x":768,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Hurt.png",
+	"frame": {"x":1152,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Rise.png",
+	"frame": {"x":0,"y":128,"w":1472,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1472,"h":64},
+	"sourceSize": {"w":1472,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Run.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Stunned.png",
+	"frame": {"x":1152,"y":64,"w":512,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":512,"h":64},
+	"sourceSize": {"w":512,"h":64}
+},
+{
+	"filename": "Zombie_Beanie_Walk.png",
+	"frame": {"x":768,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "zombie_beanie.png",
+	"format": "RGBA8888",
+	"size": {"w":1664,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:6eb13265bb2bde91f0ee5bb1990656b0:6a7018310c455fda742ce72c963bc038:f28c5ae5d54a1a63654e3830cc155bdf$"
+}
+}

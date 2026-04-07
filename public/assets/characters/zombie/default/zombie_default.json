@@ -1,0 +1,84 @@
+{"frames": [
+
+{
+	"filename": "Zombie_Default_Attack1.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Attack2.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Dead.png",
+	"frame": {"x":768,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Hurt.png",
+	"frame": {"x":1152,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Rise.png",
+	"frame": {"x":0,"y":128,"w":1472,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1472,"h":64},
+	"sourceSize": {"w":1472,"h":64}
+},
+{
+	"filename": "Zombie_Default_Run.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Zombie_Default_Stunned.png",
+	"frame": {"x":1152,"y":64,"w":512,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":512,"h":64},
+	"sourceSize": {"w":512,"h":64}
+},
+{
+	"filename": "Zombie_Default_Walk.png",
+	"frame": {"x":768,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "zombie_default.png",
+	"format": "RGBA8888",
+	"size": {"w":1664,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:1b3aa7b3b96c1a055e46349dcc905c51:133d67da6bb540e1952ce9d3b18c6e52:7e4b142244650bdf4b1d885635f9616e$"
+}
+}

@@ -1,0 +1,141 @@
+{
+  "frames": [
+    {
+      "filename": "Tiles_Platforms_Grass.png",
+      "frame": { "x": 0, "y": 0, "w": 112, "h": 320 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 320 },
+      "sourceSize": { "w": 112, "h": 320 }
+    },
+    {
+      "filename": "Tiles_Platforms_Ground.png",
+      "frame": { "x": 0, "y": 320, "w": 112, "h": 480 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 480 },
+      "sourceSize": { "w": 112, "h": 480 }
+    },
+    {
+      "filename": "Tiles_Platforms_WallCave.png",
+      "frame": { "x": 0, "y": 800, "w": 112, "h": 320 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 320 },
+      "sourceSize": { "w": 112, "h": 320 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_1.png",
+      "frame": { "x": 0, "y": 0, "w": 112, "h": 64 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 64 },
+      "sourceSize": { "w": 112, "h": 64 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_2.png",
+      "frame": { "x": 0, "y": 64, "w": 96, "h": 96 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 96 },
+      "sourceSize": { "w": 96, "h": 96 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_3.png",
+      "frame": { "x": 16, "y": 176, "w": 96, "h": 16 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 16 },
+      "sourceSize": { "w": 96, "h": 16 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_4.png",
+      "frame": { "x": 0, "y": 224, "w": 96, "h": 80 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 80 },
+      "sourceSize": { "w": 96, "h": 80 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_5.png",
+      "frame": { "x": 0, "y": 320, "w": 112, "h": 448 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 448 },
+      "sourceSize": { "w": 112, "h": 448 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_6.png",
+      "frame": { "x": 1, "y": 802, "w": 14, "h": 11 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 11 },
+      "sourceSize": { "w": 14, "h": 11 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_7.png",
+      "frame": { "x": 21, "y": 802, "w": 37, "h": 11 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 37, "h": 11 },
+      "sourceSize": { "w": 37, "h": 11 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_8.png",
+      "frame": { "x": 20, "y": 818, "w": 41, "h": 43 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 41, "h": 43 },
+      "sourceSize": { "w": 41, "h": 43 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_9.png",
+      "frame": { "x": 68, "y": 818, "w": 41, "h": 43 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 41, "h": 43 },
+      "sourceSize": { "w": 41, "h": 43 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_10.png",
+      "frame": { "x": 4, "y": 822, "w": 9, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 38 },
+      "sourceSize": { "w": 9, "h": 38 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_11.png",
+      "frame": { "x": 0, "y": 864, "w": 96, "h": 64 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 64 },
+      "sourceSize": { "w": 96, "h": 64 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_12.png",
+      "frame": { "x": 68, "y": 864, "w": 26, "h": 32 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 26, "h": 32 },
+      "sourceSize": { "w": 26, "h": 32 }
+    },
+    {
+      "filename": "Tiles_Platforms_Grass_13.png",
+      "frame": { "x": 0, "y": 960, "w": 112, "h": 128 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 112, "h": 128 },
+      "sourceSize": { "w": 112, "h": 128 }
+    }
+  ],
+  "meta": {
+    "app": "https://www.codeandweb.com/texturepacker",
+    "version": "1.0",
+    "image": "tiles.png",
+    "format": "RGBA8888",
+    "size": { "w": 112, "h": 1120 },
+    "scale": "1",
+    "smartupdate": "$TexturePacker:SmartUpdate:be435d66bd787f46c341273cb55b91c8:8d41a8d820d28c9e5c904ac01bc54cc3:accbe1e7e294ded8391337fc1c446319$"
+  }
+}

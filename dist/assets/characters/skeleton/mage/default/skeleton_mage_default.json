@@ -1,0 +1,68 @@
+{"frames": [
+
+{
+	"filename": "Skeleton_Mage_Default_Attack.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Dead.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Hurt.png",
+	"frame": {"x":768,"y":0,"w":128,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":64},
+	"sourceSize": {"w":128,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Jump.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Run.png",
+	"frame": {"x":0,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Default_Walk.png",
+	"frame": {"x":384,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "skeleton_mage_default.png",
+	"format": "RGBA8888",
+	"size": {"w":896,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:237f080f53bcd73a541ecc2dfe4745d2:b8feeddb4dcfbe6657fd481b37cf13bf:dc3eac0862709b30745eac63e91901a4$"
+}
+}

@@ -1,0 +1,68 @@
+{"frames": [
+
+{
+	"filename": "Skeleton_Mage_Wizard_Attack.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Dead.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Hurt.png",
+	"frame": {"x":768,"y":0,"w":128,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":64},
+	"sourceSize": {"w":128,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Jump.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Run.png",
+	"frame": {"x":0,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Wizard_Walk.png",
+	"frame": {"x":384,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "skeleton_mage_wizard.png",
+	"format": "RGBA8888",
+	"size": {"w":896,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:9594a7d54bf46e90a6c3742896cbcbc0:52d7dc75c626b8b0c23014e9aecfcd28:973c0e7e6b63b0f0550bdfb00a8cd080$"
+}
+}

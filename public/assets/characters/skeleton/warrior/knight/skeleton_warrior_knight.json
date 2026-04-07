@@ -1,0 +1,516 @@
+{"frames": [
+
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Attack2_Unarmed+Shield.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Attack2_Unarmed.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Attack_Unarmed+Shield.png",
+	"frame": {"x":768,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Attack_Unarmed.png",
+	"frame": {"x":1152,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Block_Unarmed+Shield.png",
+	"frame": {"x":512,"y":896,"w":320,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":320,"h":128},
+	"sourceSize": {"w":320,"h":128}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Idle_Unarmed+Shield.png",
+	"frame": {"x":1536,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Idle_Unarmed.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Jump_Unarmed+Shield.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Jump_Unarmed.png",
+	"frame": {"x":768,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Run_Unarmed+Shield.png",
+	"frame": {"x":1152,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Run_Unarmed.png",
+	"frame": {"x":1536,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Taunt_Unarmed+Shield.png",
+	"frame": {"x":0,"y":128,"w":1152,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1152,"h":64},
+	"sourceSize": {"w":1152,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Taunt_Unarmed.png",
+	"frame": {"x":1152,"y":128,"w":640,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":640,"h":64},
+	"sourceSize": {"w":640,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Walk_Unarmed+Shield.png",
+	"frame": {"x":0,"y":192,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "1_Unarmed/Skeleton_Knight_Walk_Unarmed.png",
+	"frame": {"x":384,"y":192,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Attack2_Sword+Shield.png",
+	"frame": {"x":768,"y":192,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Attack2_Sword.png",
+	"frame": {"x":1152,"y":192,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Attack_Sword+Shield.png",
+	"frame": {"x":1536,"y":192,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Attack_Sword.png",
+	"frame": {"x":0,"y":256,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Block_Sword+Shield.png",
+	"frame": {"x":832,"y":896,"w":320,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":320,"h":128},
+	"sourceSize": {"w":320,"h":128}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Idle_Sword+Shield.png",
+	"frame": {"x":384,"y":256,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Idle_Sword.png",
+	"frame": {"x":768,"y":256,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Jump_Sword+Shield.png",
+	"frame": {"x":1152,"y":256,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Jump_Sword.png",
+	"frame": {"x":1536,"y":256,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Run_Sword+Shield.png",
+	"frame": {"x":0,"y":320,"w":368,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":368,"h":64},
+	"sourceSize": {"w":368,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Run_Sword.png",
+	"frame": {"x":368,"y":320,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Taunt_Sword+Shield.png",
+	"frame": {"x":752,"y":320,"w":1152,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1152,"h":64},
+	"sourceSize": {"w":1152,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Taunt_Sword.png",
+	"frame": {"x":0,"y":384,"w":640,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":640,"h":64},
+	"sourceSize": {"w":640,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Walk_Sword+Shield.png",
+	"frame": {"x":640,"y":384,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "2_Sword/Skeleton_Knight_Walk_Sword.png",
+	"frame": {"x":1024,"y":384,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Attack2_Sabre+Shield.png",
+	"frame": {"x":1408,"y":384,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Attack2_Sabre.png",
+	"frame": {"x":0,"y":448,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Attack_Sabre+Shield.png",
+	"frame": {"x":384,"y":448,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Attack_Sabre.png",
+	"frame": {"x":768,"y":448,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Block_Sabre+Shield.png",
+	"frame": {"x":1152,"y":896,"w":320,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":320,"h":128},
+	"sourceSize": {"w":320,"h":128}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Idle_Sabre+Shield.png",
+	"frame": {"x":1152,"y":448,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Idle_Sabre.png",
+	"frame": {"x":1536,"y":448,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Jump_Sabre+Shield.png",
+	"frame": {"x":0,"y":512,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Jump_Sabre.png",
+	"frame": {"x":384,"y":512,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Run_Sabre+Shield.png",
+	"frame": {"x":768,"y":512,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Run_Sabre.png",
+	"frame": {"x":1152,"y":512,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Taunt_Sabre+Shield.png",
+	"frame": {"x":0,"y":576,"w":1152,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1152,"h":64},
+	"sourceSize": {"w":1152,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Taunt_Sabre.png",
+	"frame": {"x":1152,"y":576,"w":640,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":640,"h":64},
+	"sourceSize": {"w":640,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Walk_Sabre+Shield.png",
+	"frame": {"x":0,"y":640,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "3_Sabre/Skeleton_Knight_Walk_Sabre.png",
+	"frame": {"x":384,"y":640,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Attack2_Axe+Shield.png",
+	"frame": {"x":768,"y":640,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Attack2_Axe.png",
+	"frame": {"x":1152,"y":640,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Attack_Axe+Shield.png",
+	"frame": {"x":1536,"y":640,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Attack_Axe.png",
+	"frame": {"x":0,"y":704,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Block_Axe+Shield.png",
+	"frame": {"x":1472,"y":896,"w":320,"h":128},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":320,"h":128},
+	"sourceSize": {"w":320,"h":128}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Idle_Axe+Shield.png",
+	"frame": {"x":384,"y":704,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Idle_Axe.png",
+	"frame": {"x":768,"y":704,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Jump_Axe+Shield.png",
+	"frame": {"x":1152,"y":704,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Jump_Axe.png",
+	"frame": {"x":1536,"y":704,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Run_Axe+Shield.png",
+	"frame": {"x":0,"y":768,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Run_Axe.png",
+	"frame": {"x":384,"y":768,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Taunt_Axe+Shield.png",
+	"frame": {"x":768,"y":768,"w":1152,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":1152,"h":64},
+	"sourceSize": {"w":1152,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Taunt_Axe.png",
+	"frame": {"x":0,"y":832,"w":640,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":640,"h":64},
+	"sourceSize": {"w":640,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Walk_Axe+Shield.png",
+	"frame": {"x":640,"y":832,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "4_Axe/Skeleton_Knight_Walk_Axe.png",
+	"frame": {"x":1024,"y":832,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Knight_Dead.png",
+	"frame": {"x":1408,"y":832,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Knight_Hurt.png",
+	"frame": {"x":1792,"y":832,"w":128,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":64},
+	"sourceSize": {"w":128,"h":64}
+},
+{
+	"filename": "Skeleton_Knight_Stunned.png",
+	"frame": {"x":0,"y":896,"w":512,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":512,"h":64},
+	"sourceSize": {"w":512,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "skeleton_warrior_knight.png",
+	"format": "RGBA8888",
+	"size": {"w":1920,"h":1024},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:898531bcfcb3ef56af996e905466107a:751691d8446b63bd2da776e8a1913ab9:05553af4d65074e4cc5dd2c293f46692$"
+}
+}

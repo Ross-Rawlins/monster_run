@@ -1,0 +1,84 @@
+{
+  "frames": [
+    {
+      "filename": "ATTACK 1.png",
+      "frame": { "x": 0, "y": 0, "w": 576, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 576, "h": 84 },
+      "sourceSize": { "w": 576, "h": 84 }
+    },
+    {
+      "filename": "ATTACK 2.png",
+      "frame": { "x": 576, "y": 0, "w": 480, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 480, "h": 84 },
+      "sourceSize": { "w": 480, "h": 84 }
+    },
+    {
+      "filename": "ATTACK 3.png",
+      "frame": { "x": 1056, "y": 0, "w": 576, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 576, "h": 84 },
+      "sourceSize": { "w": 576, "h": 84 }
+    },
+    {
+      "filename": "DEATH.png",
+      "frame": { "x": 0, "y": 84, "w": 1152, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 1152, "h": 84 },
+      "sourceSize": { "w": 1152, "h": 84 }
+    },
+    {
+      "filename": "DEFEND.png",
+      "frame": { "x": 1152, "y": 84, "w": 576, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 576, "h": 84 },
+      "sourceSize": { "w": 576, "h": 84 }
+    },
+    {
+      "filename": "HURT.png",
+      "frame": { "x": 0, "y": 168, "w": 384, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 384, "h": 84 },
+      "sourceSize": { "w": 384, "h": 84 }
+    },
+    {
+      "filename": "IDLE.png",
+      "frame": { "x": 384, "y": 168, "w": 672, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 672, "h": 84 },
+      "sourceSize": { "w": 672, "h": 84 }
+    },
+    {
+      "filename": "JUMP.png",
+      "frame": { "x": 1056, "y": 168, "w": 480, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 480, "h": 84 },
+      "sourceSize": { "w": 480, "h": 84 }
+    },
+    {
+      "filename": "RUN.png",
+      "frame": { "x": 0, "y": 252, "w": 768, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 84 },
+      "sourceSize": { "w": 768, "h": 84 }
+    },
+    {
+      "filename": "WALK.png",
+      "frame": { "x": 768, "y": 252, "w": 768, "h": 84 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 768, "h": 84 },
+      "sourceSize": { "w": 768, "h": 84 }
+    }
+  ]
+}

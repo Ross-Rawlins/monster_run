@@ -1,0 +1,68 @@
+{"frames": [
+
+{
+	"filename": "Skeleton_Mage_Hooded_Attack.png",
+	"frame": {"x":0,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Dead.png",
+	"frame": {"x":384,"y":0,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Hurt.png",
+	"frame": {"x":768,"y":0,"w":128,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":128,"h":64},
+	"sourceSize": {"w":128,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Idle.png",
+	"frame": {"x":0,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Jump.png",
+	"frame": {"x":384,"y":64,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Run.png",
+	"frame": {"x":0,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+},
+{
+	"filename": "Skeleton_Mage_Hooded_Walk.png",
+	"frame": {"x":384,"y":128,"w":384,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":384,"h":64},
+	"sourceSize": {"w":384,"h":64}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "skeleton_mage_hooded.png",
+	"format": "RGBA8888",
+	"size": {"w":896,"h":192},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:1f738043bbc51ca93535a344fad7c9e0:f4bffe2a4384e606efdf3e08dc15bd2b:6750775b92e81e93deaa4f0e8de2abb9$"
+}
+}
