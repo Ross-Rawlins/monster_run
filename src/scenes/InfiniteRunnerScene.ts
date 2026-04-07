@@ -3,6 +3,8 @@ import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
 import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager'
+import { ChunkManager } from '../world/ChunkManager'
+import { TILE_RENDERED } from '../world/ChunkBuilder'
 
 type MoveDirection = -1 | 0 | 1
 
@@ -27,9 +29,16 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private parallaxManager!: ParallaxBackgroundManager
 
+  private chunkManager!: ChunkManager
+
   private player!: PlayableCharacter
 
-  private ground!: Phaser.GameObjects.Rectangle
+  /**
+   * Invisible physics rectangle that keeps the player standing on the ground.
+   * Positioned at groundTop so the top surface aligns with the tile layer.
+   * Hidden by the tile visuals drawn on top.
+   */
+  private groundBody!: Phaser.GameObjects.Rectangle
 
   private tuningHud!: Phaser.GameObjects.Text
 
@@ -43,6 +52,12 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private airborneScrollVelocity = 0
 
+  /** Y below which the player is considered to have fallen into a gap. */
+  private deathZoneY = 0
+
+  /** Y position of the top of the ground band (screen pixels). */
+  private groundY = 0
+
   constructor() {
     super({ key: SCENE_KEYS.INFINITE_RUNNER })
   }
@@ -51,34 +66,47 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     const width = this.scale.width
     const height = this.scale.height
     const gridHeight = height / 14
-    const groundTop = height - gridHeight * 3
 
-    this.cameras.main.setBackgroundColor('#52997c')
+    // Ground top aligns to the nearest tile boundary for clean tile rendering
+    const rawGroundTop = height - gridHeight * 3
+    this.groundY = Math.floor(rawGroundTop / TILE_RENDERED) * TILE_RENDERED
+    this.deathZoneY = height + TILE_RENDERED * 2
+
+    this.cameras.main.setBackgroundColor('#1a1a2e')
     this.parallaxManager = new ParallaxBackgroundManager(this, width, height)
-    this.physics.world.setBounds(0, 0, width, height)
+    this.physics.world.setBounds(0, -height * 4, width, height * 6)
     this.cameras.main.setBounds(0, 0, width, height)
 
-    this.ground = this.add
+    // ── Physics ground band ────────────────────────────────────────────────
+    // A thin static rectangle at groundY so the player lands on the surface
+    // tile row. The visible tiles are drawn on top by ChunkManager.
+    this.groundBody = this.add
       .rectangle(
         width * 0.5,
-        groundTop + (height - groundTop) * 0.5,
+        this.groundY,
         width,
-        height - groundTop,
-        0x364859
+        height - this.groundY,
+        0x000000,
+        0  // fully transparent — tiles are drawn over this
       )
-      .setDepth(10)
+      .setDepth(7)
 
-    this.physics.add.existing(this.ground, true)
+    this.physics.add.existing(this.groundBody, true)
 
+    // ── Chunk world ────────────────────────────────────────────────────────
+    this.chunkManager = new ChunkManager(this, this.groundY, width)
+
+    // ── Player ────────────────────────────────────────────────────────────
     const knight = CharacterRegistry.getById('knight')
     this.player = new PlayableCharacter(
       this,
       width * 0.25,
-      groundTop - gridHeight * 1.5,
+      this.groundY - gridHeight * 1.5,
       knight
     )
     this.player.setDepth(20)
-    this.physics.add.collider(this.player, this.ground)
+    this.physics.add.collider(this.player, this.groundBody)
+    this.physics.add.collider(this.player, this.chunkManager.platformGroup)
 
     this.cameras.main.scrollX = 0
 
@@ -124,6 +152,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     // Cleanup on shutdown
     this.events.on('shutdown', () => {
       this.parallaxManager.destroy()
+      this.chunkManager.destroy()
     })
   }
 
@@ -133,6 +162,12 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.updateRunState(cursorKeys, direction)
 
     if (Phaser.Input.Keyboard.JustDown(cursorKeys.reset)) {
+      this.scene.restart()
+      return
+    }
+
+    // Respawn if player fell into a gap
+    if (this.player.y > this.deathZoneY) {
       this.scene.restart()
       return
     }
@@ -213,6 +248,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
+    this.chunkManager.update(this.previewScrollX)
     this.updateTuningHud(direction, isRunIntent, isGrounded, scrollSpeed)
   }
 
@@ -259,6 +295,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.tuningHud.setText([
       `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
       `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
+      `chunks=${this.chunkManager.totalChunksGenerated} active=${this.chunkManager.activeChunkCount}`,
       `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
       `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
       `airControlMultiplier=${config.airControlMultiplier} airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)}`,
