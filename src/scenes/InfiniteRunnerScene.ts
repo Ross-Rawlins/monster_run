@@ -166,8 +166,12 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     scrollSpeed: number
   ): void {
     const config = this.movementConfig
-    const activeState =
-      direction === 0 ? 'idle' : isRunning ? 'run' : 'walk'
+    let activeState = 'walk'
+    if (direction === 0) {
+      activeState = 'idle'
+    } else if (isRunning) {
+      activeState = 'run'
+    }
 
     this.tuningHud.setText([
       `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
