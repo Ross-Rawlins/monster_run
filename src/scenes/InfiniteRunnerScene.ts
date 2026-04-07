@@ -17,10 +17,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   private readonly movementConfig = {
     lockScreenRatio: 1 / 3,
     runDoubleTapWindowMs: 300,
-    walkScrollSpeed: 320,
-    runScrollSpeed: 560,
+    walkScrollSpeed: 390,
+    runScrollSpeed: 680,
     airControlMultiplier: 0.85,
-    runJumpDistanceMultiplier: 1.65,
+    runJumpDistanceMultiplier: 1.75,
     airborneMomentumRetention: 0.985,
   }
 
@@ -177,7 +177,13 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     const isGrounded = body.blocked.down
     const isRunIntent =
       this.runDirection !== 0 && direction === this.runDirection
-    const scrollSpeed = this.calculateScrollSpeed(direction, isGrounded)
+    const rawScrollSpeed = this.calculateScrollSpeed(direction, isGrounded)
+    const isGroundAttackActive = this.player.isAttackActive() && isGrounded
+    const scrollSpeed = isGroundAttackActive ? 0 : rawScrollSpeed
+
+    if (isGroundAttackActive) {
+      this.airborneScrollVelocity = 0
+    }
     this.previewScrollX = Math.max(
       0,
       this.previewScrollX + scrollSpeed * this.game.loop.delta * 0.001
