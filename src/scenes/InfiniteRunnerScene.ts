@@ -20,7 +20,6 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     walkScrollSpeed: 390,
     runScrollSpeed: 680,
     airControlMultiplier: 0.85,
-    runJumpDistanceMultiplier: 1,
     airborneMomentumRetention: 0.985,
   }
 
@@ -262,8 +261,8 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
       `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
       `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
-      `airControlMultiplier=${config.airControlMultiplier} runJumpDistanceMultiplier=${config.runJumpDistanceMultiplier}`,
-      `airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)} airVel=${this.airborneScrollVelocity.toFixed(1)}`,
+      `airControlMultiplier=${config.airControlMultiplier} airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)}`,
+      `airVel=${this.airborneScrollVelocity.toFixed(1)}`,
     ])
   }
 
