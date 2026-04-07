@@ -138,16 +138,31 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       return
     }
 
-    if (direction === 0) {
-      this.player.setForcedGroundMotionState()
-    } else if (this.runDirection === direction) {
-      this.player.setForcedGroundMotionState('run')
-    } else {
-      this.player.setForcedGroundMotionState('move')
-    }
+    this.updateForcedGroundMotionState(direction)
 
     this.player.applyHorizontalInput(direction)
+    this.handleJumpAndAttackInput(cursorKeys)
 
+    this.player.refreshAnimationState()
+
+    this.updateScrollAndLock(direction)
+  }
+
+  private updateForcedGroundMotionState(direction: MoveDirection): void {
+    if (direction === 0) {
+      this.player.setForcedGroundMotionState()
+      return
+    }
+
+    if (this.runDirection === direction) {
+      this.player.setForcedGroundMotionState('run')
+      return
+    }
+
+    this.player.setForcedGroundMotionState('move')
+  }
+
+  private handleJumpAndAttackInput(cursorKeys: RunnerKeys): void {
     if (
       Phaser.Input.Keyboard.JustDown(cursorKeys.up) ||
       Phaser.Input.Keyboard.JustDown(cursorKeys.space)
@@ -156,23 +171,27 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(cursorKeys.attack)) {
-      let attackState: 'attack' | 'attack2' | 'attack3' = 'attack'
-      if (this.player.isGrounded()) {
-        if (this.player.isRunning()) {
-          attackState = 'attack2'
-        }
-      } else {
-        attackState = 'attack3'
-      }
-      this.player.triggerAction(attackState)
+      this.player.triggerAction(this.getPrimaryAttackState())
     }
 
     if (Phaser.Input.Keyboard.JustDown(cursorKeys.attack3)) {
       this.player.triggerAction('attack3')
     }
+  }
 
-    this.player.refreshAnimationState()
+  private getPrimaryAttackState(): 'attack' | 'attack2' | 'attack3' {
+    if (!this.player.isGrounded()) {
+      return 'attack3'
+    }
 
+    if (this.player.isRunning()) {
+      return 'attack2'
+    }
+
+    return 'attack'
+  }
+
+  private updateScrollAndLock(direction: MoveDirection): void {
     const body = this.player.body as Phaser.Physics.Arcade.Body
     const isGrounded = body.blocked.down
     const isRunIntent =
