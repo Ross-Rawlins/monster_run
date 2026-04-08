@@ -2,6 +2,7 @@ import {
   TERRAIN_CHUNK_TEMPLATES,
   TerrainChunkTemplate,
 } from './terrainChunkTemplates'
+import { pickWeighted } from '../utils/weightedSelection'
 
 export function pickTerrainTemplate(
   chunkIndex: number,
@@ -15,19 +16,9 @@ export function pickTerrainTemplate(
     throw new Error(`No terrain template is eligible for chunk ${chunkIndex}`)
   }
 
-  const totalWeight = eligible.reduce(
-    (total, template) => total + template.weight,
-    0
+  return pickWeighted(
+    eligible,
+    (template) => template.weight,
+    nextRandom
   )
-  let roll = nextRandom() * totalWeight
-
-  for (const template of eligible) {
-    roll -= template.weight
-
-    if (roll <= 0) {
-      return template
-    }
-  }
-
-  return eligible[eligible.length - 1]
 }

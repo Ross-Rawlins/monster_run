@@ -5,7 +5,7 @@ import { TerrainGenerator } from '../world/terrain/TerrainGenerator'
 import {
   TerrainChunkSpec,
   TerrainPlatformSpec,
-} from '../world/terrain/terrainGeneratorTypes'
+} from '../world/terrain/types/terrainGeneratorTypes'
 import { TerrainGridDebug } from '../world/terrain/TerrainGridDebug'
 import { resolveTerrainFrame } from '../world/terrain/terrainTileRules'
 

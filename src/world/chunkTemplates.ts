@@ -15,6 +15,7 @@
  */
 
 import type { ChunkTemplate } from './types'
+import { pickWeighted } from './utils/weightedSelection'
 
 export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
   // ── flat_open ──────────────────────────────────────────────────────────
@@ -140,13 +141,5 @@ export function pickTemplate(chunksGenerated: number): ChunkTemplate {
     (t) => chunksGenerated >= t.minChunk
   )
 
-  const totalWeight = eligible.reduce((sum, t) => sum + t.weight, 0)
-  let roll = Math.random() * totalWeight
-
-  for (const template of eligible) {
-    roll -= template.weight
-    if (roll <= 0) return template
-  }
-
-  return eligible[eligible.length - 1]
+  return pickWeighted(eligible, (template) => template.weight)
 }

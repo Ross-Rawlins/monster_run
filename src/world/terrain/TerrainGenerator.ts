@@ -7,7 +7,7 @@ import {
 import {
   TerrainChunkSpec,
   TerrainGeneratorConfig,
-} from './terrainGeneratorTypes'
+} from './types/terrainGeneratorTypes'
 import { TerrainRandom } from './terrainRandom'
 import { pickTerrainTemplate } from './terrainTemplateSelection'
 
@@ -15,7 +15,7 @@ export type {
   TerrainChunkSpec,
   TerrainGeneratorConfig,
   TerrainPlatformSpec,
-} from './terrainGeneratorTypes'
+} from './types/terrainGeneratorTypes'
 
 interface GeneratorState {
   lastExitRow: number

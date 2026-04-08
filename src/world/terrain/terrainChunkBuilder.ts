@@ -2,14 +2,22 @@ import { getTerrainDifficultyParams } from './terrainDifficultyScale'
 import {
   OPENING_TERRAIN_CHUNK_TEMPLATES,
   TerrainChunkTemplate,
-  TerrainTemplatePlatformLayout,
 } from './terrainChunkTemplates'
 import {
   TerrainChunkSpec,
   TerrainGeneratorConfig,
   TerrainPlatformSpec,
-} from './terrainGeneratorTypes'
+} from './types/terrainGeneratorTypes'
 import { TerrainRandom } from './terrainRandom'
+import {
+  clampTerrainRow,
+  createFloatingPlatform,
+  getBodyDepthTiles,
+  resolveEntryGap,
+  resolveMainWidth,
+  resolveNextRow,
+  toPlatformSpec,
+} from './terrainChunkBuilderUtils'
 
 export function createOpeningChunk(
   chunkIndex: number,
@@ -71,43 +79,19 @@ export function buildChunkFromTemplate(
     },
   ]
 
-  const floatingChance =
-    (template.floatingPlatformChance ?? 0) +
-    difficulty.floatingPlatformChanceBonus
+  const floatingPlatform = createFloatingPlatform(
+    template,
+    widthTiles,
+    localTileX,
+    nextRow,
+    maxStartOffset,
+    difficulty,
+    config,
+    random
+  )
 
-  if (
-    (template.archetype === 'floating-chain' ||
-      random.nextFloat() < floatingChance) &&
-    widthTiles >= 6
-  ) {
-    const floatingWidth = random.randomInRange(
-      template.floatingWidthRange,
-      [2, 3]
-    )
-    const floatingOffset = random.randomInRange(
-      template.floatingHeightRange,
-      [2, 3]
-    )
-    const floatingRow = clampRow(nextRow - floatingOffset, config)
-    const floatingStartMin = Math.min(
-      maxStartOffset,
-      Math.max(0, localTileX + 1)
-    )
-    const floatingStartMax = Math.max(
-      floatingStartMin,
-      Math.min(
-        config.chunkWidthTiles - floatingWidth,
-        localTileX + widthTiles - floatingWidth
-      )
-    )
-
-    platforms.push({
-      localTileX: random.randomInt(floatingStartMin, floatingStartMax),
-      topRow: floatingRow,
-      widthTiles: Math.min(floatingWidth, config.chunkWidthTiles),
-      bodyDepthTiles: 2,
-      role: 'floating',
-    })
+  if (floatingPlatform) {
+    platforms.push(floatingPlatform)
   }
 
   return {
@@ -142,125 +126,8 @@ export function resolveOpeningSpawnSurfaceRow(
       platform.role === 'main'
   )
 
-  return clampRow(
+  return clampTerrainRow(
     matchingPlatform?.topRow ?? openingTemplate.explicitPlatforms[0].topRow,
     config
   )
-}
-
-function resolveMainWidth(
-  template: TerrainChunkTemplate,
-  widthPenaltyTiles: number,
-  config: TerrainGeneratorConfig,
-  random: TerrainRandom
-): number {
-  const rolledWidth = random.randomInRange(template.widthRange, [10, 14])
-
-  return Math.max(
-    5,
-    Math.min(config.chunkWidthTiles, rolledWidth - widthPenaltyTiles)
-  )
-}
-
-function resolveEntryGap(
-  template: TerrainChunkTemplate,
-  gapTilesBonus: number,
-  random: TerrainRandom
-): number {
-  const baseGap = random.randomInRange(template.gapRange, [0, 2])
-
-  if (template.archetype === 'gap' || template.archetype === 'floating-chain') {
-    return baseGap + gapTilesBonus
-  }
-
-  if (template.archetype === 'step-down') {
-    return baseGap + Math.min(1, gapTilesBonus)
-  }
-
-  return baseGap
-}
-
-function resolveNextRow(
-  previousRow: number,
-  template: TerrainChunkTemplate,
-  difficulty: ReturnType<typeof getTerrainDifficultyParams>,
-  config: TerrainGeneratorConfig,
-  random: TerrainRandom
-): number {
-  switch (template.archetype) {
-    case 'step-up': {
-      const rolledStep = random.randomInRange(template.rowDeltaRange, [1, 2])
-      const maxAllowedStep = Math.min(
-        config.maxUpStepTiles + difficulty.verticalStepBonus,
-        previousRow - config.minSurfaceRow
-      )
-      const step = Math.max(
-        1,
-        Math.min(rolledStep, Math.max(1, maxAllowedStep))
-      )
-      return clampRow(previousRow - step, config)
-    }
-
-    case 'step-down': {
-      const rolledStep = random.randomInRange(template.rowDeltaRange, [1, 2])
-      const maxAllowedStep = Math.min(
-        config.maxDownStepTiles + difficulty.verticalStepBonus,
-        config.maxSurfaceRow - previousRow
-      )
-      const step = Math.max(
-        1,
-        Math.min(rolledStep, Math.max(1, maxAllowedStep))
-      )
-      return clampRow(previousRow + step, config)
-    }
-
-    case 'recovery': {
-      const direction = Math.sign(config.baselineSurfaceRow - previousRow)
-
-      if (direction === 0) {
-        return previousRow
-      }
-
-      const rolledStep = random.randomInRange(template.rowDeltaRange, [1, 2])
-      const step = Math.max(1, rolledStep + difficulty.recoveryStepTiles - 1)
-
-      return clampRow(previousRow + direction * step, config)
-    }
-
-    case 'flat':
-    case 'gap':
-    case 'floating-chain':
-    default: {
-      const rowDelta = random.randomInRange(template.rowDeltaRange, [0, 0])
-      return clampRow(previousRow + rowDelta, config)
-    }
-  }
-}
-
-function toPlatformSpec(
-  platform: TerrainTemplatePlatformLayout,
-  config: TerrainGeneratorConfig
-): TerrainPlatformSpec {
-  const topRow = clampRow(platform.topRow, config)
-
-  return {
-    localTileX: platform.localTileX,
-    topRow,
-    widthTiles: platform.widthTiles,
-    bodyDepthTiles:
-      platform.bodyDepthTiles ??
-      (platform.role === 'floating' ? 2 : getBodyDepthTiles(topRow, config)),
-    role: platform.role,
-  }
-}
-
-function clampRow(row: number, config: TerrainGeneratorConfig): number {
-  return Math.max(config.minSurfaceRow, Math.min(config.maxSurfaceRow, row))
-}
-
-function getBodyDepthTiles(
-  topRow: number,
-  config: TerrainGeneratorConfig
-): number {
-  return Math.max(2, config.playfieldBottomRow - topRow)
 }
