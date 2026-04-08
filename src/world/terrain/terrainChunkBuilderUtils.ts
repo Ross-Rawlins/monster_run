@@ -50,23 +50,29 @@ export function resolveNextRow(
 ): number {
   switch (template.archetype) {
     case 'step-up': {
-      return previousRow - resolveStepDistance(
-        random,
-        template.rowDeltaRange,
-        Math.min(
-          config.maxUpStepTiles + difficulty.verticalStepBonus,
-          previousRow - config.minSurfaceRow
+      return (
+        previousRow -
+        resolveStepDistance(
+          random,
+          template.rowDeltaRange,
+          Math.min(
+            config.maxUpStepTiles + difficulty.verticalStepBonus,
+            previousRow - config.minSurfaceRow
+          )
         )
       )
     }
 
     case 'step-down': {
-      return previousRow + resolveStepDistance(
-        random,
-        template.rowDeltaRange,
-        Math.min(
-          config.maxDownStepTiles + difficulty.verticalStepBonus,
-          config.maxSurfaceRow - previousRow
+      return (
+        previousRow +
+        resolveStepDistance(
+          random,
+          template.rowDeltaRange,
+          Math.min(
+            config.maxDownStepTiles + difficulty.verticalStepBonus,
+            config.maxSurfaceRow - previousRow
+          )
         )
       )
     }
@@ -116,8 +122,14 @@ export function createFloatingPlatform(
     return null
   }
 
-  const floatingWidth = random.randomInRange(template.floatingWidthRange, [2, 3])
-  const floatingOffset = random.randomInRange(template.floatingHeightRange, [2, 3])
+  const floatingWidth = random.randomInRange(
+    template.floatingWidthRange,
+    [2, 3]
+  )
+  const floatingOffset = random.randomInRange(
+    template.floatingHeightRange,
+    [2, 3]
+  )
   const floatingRow = clampTerrainRow(nextRow - floatingOffset, config)
   const floatingStartMin = Math.min(maxStartOffset, Math.max(0, localTileX + 1))
   const floatingStartMax = Math.max(

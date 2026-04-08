@@ -16,9 +16,5 @@ export function pickTerrainTemplate(
     throw new Error(`No terrain template is eligible for chunk ${chunkIndex}`)
   }
 
-  return pickWeighted(
-    eligible,
-    (template) => template.weight,
-    nextRandom
-  )
+  return pickWeighted(eligible, (template) => template.weight, nextRandom)
 }

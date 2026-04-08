@@ -57,12 +57,8 @@ export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
     minChunk: 2,
     biome: 'graveyard',
     gaps: [],
-    platforms: [
-      { startTile: 6, widthTiles: 5, tilesAboveGround: 3 },
-    ],
-    decorations: [
-      { tileCol: 3, frame: 'Objects_32x32_01.png', depth: 15 },
-    ],
+    platforms: [{ startTile: 6, widthTiles: 5, tilesAboveGround: 3 }],
+    decorations: [{ tileCol: 3, frame: 'Objects_32x32_01.png', depth: 15 }],
   },
 
   // ── gap_run ────────────────────────────────────────────────────────────
@@ -72,9 +68,7 @@ export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
     weight: 15,
     minChunk: 4,
     biome: 'graveyard',
-    gaps: [
-      { startTile: 7, widthTiles: 3 },
-    ],
+    gaps: [{ startTile: 7, widthTiles: 3 }],
     platforms: [],
     decorations: [],
   },
@@ -86,12 +80,8 @@ export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
     weight: 10,
     minChunk: 6,
     biome: 'graveyard',
-    gaps: [
-      { startTile: 8, widthTiles: 4 },
-    ],
-    platforms: [
-      { startTile: 9, widthTiles: 3, tilesAboveGround: 3 },
-    ],
+    gaps: [{ startTile: 8, widthTiles: 4 }],
+    platforms: [{ startTile: 9, widthTiles: 3, tilesAboveGround: 3 }],
     decorations: [],
   },
 
@@ -122,9 +112,7 @@ export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
       { startTile: 2, widthTiles: 4, tilesAboveGround: 2 },
       { startTile: 12, widthTiles: 4, tilesAboveGround: 4 },
     ],
-    decorations: [
-      { tileCol: 17, frame: 'Objects_48x48_01.png', depth: 15 },
-    ],
+    decorations: [{ tileCol: 17, frame: 'Objects_48x48_01.png', depth: 15 }],
   },
 ]
 
@@ -137,9 +125,7 @@ export const CHUNK_TEMPLATES: readonly ChunkTemplate[] = [
  * @param chunksGenerated  How many chunks have been spawned so far.
  */
 export function pickTemplate(chunksGenerated: number): ChunkTemplate {
-  const eligible = CHUNK_TEMPLATES.filter(
-    (t) => chunksGenerated >= t.minChunk
-  )
+  const eligible = CHUNK_TEMPLATES.filter((t) => chunksGenerated >= t.minChunk)
 
   return pickWeighted(eligible, (template) => template.weight)
 }

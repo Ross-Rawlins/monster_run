@@ -71,7 +71,9 @@ export class TerrainGenerator {
   }
 
   public getSpawnSurfaceY(worldTileSize: number): number {
-    return (this.config.playfieldBottomRow - this.spawnSurfaceRow) * worldTileSize
+    return (
+      (this.config.playfieldBottomRow - this.spawnSurfaceRow) * worldTileSize
+    )
   }
 
   private buildChunk(chunkIndex: number): TerrainChunkSpec {
