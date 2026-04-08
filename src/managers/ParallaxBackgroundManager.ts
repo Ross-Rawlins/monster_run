@@ -35,8 +35,10 @@ export class ParallaxBackgroundManager {
     // Grid rows are 1-based in design notes:
     // - Clouds start at row 4 and occupy 2 rows
     // - Trees start at row 7 and occupy 2 rows
+    // - Front foliage starts at row 9 and occupies 2 rows
     const cloudTop = gridHeight * 3
     const treeTop = gridHeight * 6
+    const frontTop = gridHeight * 8
     const stripHeight = gridHeight * 2
 
     const layerConfigs: LayerConfig[] = [
@@ -57,6 +59,15 @@ export class ParallaxBackgroundManager {
         stripHeight,
         fillColor: 0x3f5f6c,
         fillDepth: -15,
+      },
+      {
+        frame: 'Tilemap_Background_Spooky_Front.png',
+        depth: -2,
+        speed: 0.4,
+        top: frontTop,
+        stripHeight,
+        fillColor: 0x2d3e38,
+        fillDepth: -8,
       },
     ]
 
