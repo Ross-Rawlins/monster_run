@@ -29,18 +29,6 @@ export default class BootScene extends Scene {
       'assets/tiles.png',
       'assets/tiles.json'
     )
-    // Individual 16×16 grass surface tiles (65 tiles in a single row)
-    this.load.atlas(
-      RUNNER_ASSET_KEYS.TILE_ATLAS_GRASS,
-      'assets/tiles/Tilles_Platforms_Grass.png',
-      'assets/tiles/Tilles_Platforms_Grass.json'
-    )
-    // Individual 16×16 ground fill tiles (149 tiles in a 2-column stack)
-    this.load.atlas(
-      RUNNER_ASSET_KEYS.TILE_ATLAS_GROUND,
-      'assets/tiles/Tilles_Platforms_Ground.png',
-      'assets/tiles/Tilles_Platforms_Ground.json'
-    )
     this.load.atlas(
       RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
       'assets/objects.png',

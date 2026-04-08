@@ -1,6 +1,6 @@
 import { CharacterId } from '../config/keys'
 import { AbstractCharacterDefinition } from './AbstractCharacterDefinition'
-import { KNIGHT_DEFINITION } from './definitions/KnightCharacter'
+// import { KNIGHT_DEFINITION } from './definitions/KnightCharacter' // temporarily disabled
 import { SKELETON_DEFAULT_DEFINITION } from './definitions/skeleton/warrior/SkeletonDefaultDefinition'
 import { SKELETON_KNIGHT_DEFINITION } from './definitions/skeleton/warrior/SkeletonKnightDefinition'
 import { SKELETON_PIRATE_DEFINITION } from './definitions/skeleton/warrior/SkeletonPirateDefinition'
@@ -31,7 +31,7 @@ import { ZOMBIE_TOQUE_DEFINITION } from './definitions/zombie/ZombieToqueDefinit
 import { ZOMBIE_VIKING_DEFINITION } from './definitions/zombie/ZombieVikingDefinition'
 
 const characterDefinitions: AbstractCharacterDefinition[] = [
-  KNIGHT_DEFINITION,
+  // KNIGHT_DEFINITION, // temporarily disabled — focusing on terrain/background
   SKELETON_DEFAULT_DEFINITION,
   SKELETON_KNIGHT_DEFINITION,
   SKELETON_PIRATE_DEFINITION,

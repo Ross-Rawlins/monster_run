@@ -2,6 +2,7 @@ import {
   AbstractCharacterDefinition,
   anim,
 } from '../AbstractCharacterDefinition'
+import { defineBodyProfiles } from '../bodyProfiles'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
 
 /**
@@ -38,6 +39,10 @@ export abstract class SkeletonMageBaseDefinition extends AbstractCharacterDefini
     height: 56,
     offsetX: 21,
     offsetY: 4,
+  }
+
+  get bodyProfiles() {
+    return defineBodyProfiles(this.body)
   }
 
   get animations(): CharacterAnimationSet {

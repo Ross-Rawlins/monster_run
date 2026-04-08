@@ -2,6 +2,7 @@ import {
   AbstractCharacterDefinition,
   anim,
 } from '../AbstractCharacterDefinition'
+import { defineBodyProfiles } from '../bodyProfiles'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
 
 /**
@@ -39,6 +40,10 @@ export abstract class ZombieBaseDefinition extends AbstractCharacterDefinition {
     height: 56,
     offsetX: 19,
     offsetY: 4,
+  }
+
+  get bodyProfiles() {
+    return defineBodyProfiles(this.body)
   }
 
   get animations(): CharacterAnimationSet {

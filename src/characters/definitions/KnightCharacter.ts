@@ -4,6 +4,7 @@ import {
   anim,
 } from '../AbstractCharacterDefinition'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
+import { defineBodyProfiles } from '../bodyProfiles'
 
 /**
  * Knight Character Definition
@@ -44,10 +45,51 @@ export class KnightDefinition extends AbstractCharacterDefinition {
   override readonly runJumpBoost = 1.28
 
   readonly body: CharacterBodyDefinition = {
-    width: 40,
-    height: 70,
-    offsetX: 28,
-    offsetY: 3,
+    // Center the body on the grounded torso/legs so the feet sit on the ground plane.
+    width: 30,
+    height: 44,
+    offsetX: 32,
+    offsetY: 20,
+  }
+
+  get bodyProfiles() {
+    return defineBodyProfiles(this.body, {
+      run: {
+        width: 31,
+        offsetX: 31,
+      },
+      jump: {
+        width: 28,
+        height: 40,
+        offsetX: 32,
+        offsetY: 24,
+      },
+      attack: {
+        width: 31,
+        offsetX: 31,
+      },
+      attack2: {
+        width: 33,
+        offsetX: 30,
+      },
+      attack3: {
+        width: 32,
+        height: 46,
+        offsetX: 30,
+        offsetY: 18,
+      },
+      defend: {
+        width: 29,
+        height: 44,
+        offsetX: 33,
+      },
+      death: {
+        width: 38,
+        height: 20,
+        offsetX: 29,
+        offsetY: 44,
+      },
+    })
   }
 
   readonly animations: CharacterAnimationSet = {

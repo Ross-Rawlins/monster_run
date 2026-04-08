@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser'
-import { CharacterState } from './types'
+import { CharacterBodyDefinition, CharacterState } from './types'
 import { AbstractCharacterDefinition } from './AbstractCharacterDefinition'
 
 export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
@@ -27,6 +27,10 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
 
   private readonly runSpeedMultiplier = 1.85
 
+  private debugBodyOverrides: Partial<
+    Record<CharacterState, CharacterBodyDefinition>
+  > = {}
+
   private forcedGroundMotionState?: 'move' | 'run'
 
   constructor(
@@ -47,12 +51,7 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, 1)
     this.setCollideWorldBounds(true)
     this.setDragX(definition.drag ?? 1600)
-    this.playAnimationState('idle')
-
-    const body = this.body as Phaser.Physics.Arcade.Body
-
-    body.setSize(definition.body.width, definition.body.height)
-    body.setOffset(definition.body.offsetX, definition.body.offsetY)
+    this.playAnimationState('idle', true)
 
     this.on(
       Phaser.Animations.Events.ANIMATION_COMPLETE,
@@ -199,6 +198,44 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     return this.definition
   }
 
+  /** Returns the animation state the character is currently playing. */
+  public getCurrentState(): CharacterState {
+    return this.currentState
+  }
+
+  /**
+   * Returns the physics body dimensions/offset as currently applied.
+   * Values are in source-frame pixels (before the sprite scale factor).
+   */
+  public getCurrentBodyValues(): CharacterBodyDefinition {
+    const arcadeBody = this.body as Phaser.Physics.Arcade.Body
+    return {
+      width: Math.round(arcadeBody.width),
+      height: Math.round(arcadeBody.height),
+      offsetX: Math.round(arcadeBody.offset.x),
+      offsetY: Math.round(arcadeBody.offset.y),
+    }
+  }
+
+  /**
+   * Stores a runtime override for the given state and immediately applies it
+   * if the character is currently in that state.
+   * Pass `undefined` as the body argument to clear the override.
+   */
+  public setDebugBodyOverride(
+    state: CharacterState,
+    body: CharacterBodyDefinition | undefined
+  ): void {
+    if (body === undefined) {
+      delete this.debugBodyOverrides[state]
+    } else {
+      this.debugBodyOverrides[state] = body
+    }
+    if (this.currentState === state) {
+      this.applyBodyProfile(state)
+    }
+  }
+
   public isFacingRightWorld(): boolean {
     const facingRightByDefault = this.definition.facingRight ?? false
     return this.flipX !== facingRightByDefault
@@ -255,7 +292,25 @@ export default class PlayableCharacter extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.currentState = state
+    this.applyBodyProfile(state)
     this.anims.play(animation.name, true)
+  }
+
+  private applyBodyProfile(state: CharacterState): void {
+    const body = this.body as Phaser.Physics.Arcade.Body | undefined
+
+    if (!body) {
+      return
+    }
+
+    const definition =
+      this.debugBodyOverrides[state] ?? this.getBodyDefinitionForState(state)
+    body.setSize(definition.width, definition.height)
+    body.setOffset(definition.offsetX, definition.offsetY)
+  }
+
+  private getBodyDefinitionForState(state: CharacterState) {
+    return this.definition.getBodyForState(state)
   }
 
   private handleAnimationComplete(

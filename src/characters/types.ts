@@ -32,6 +32,10 @@ export interface CharacterBodyDefinition {
   offsetY: number
 }
 
+export type CharacterBodyProfileSet = Partial<
+  Record<CharacterState, CharacterBodyDefinition>
+>
+
 export interface CharacterDefinition {
   id: CharacterId
   label: string
@@ -51,5 +55,6 @@ export interface CharacterDefinition {
   canJump?: boolean
   runThreshold?: number
   body: CharacterBodyDefinition
+  bodyProfiles?: CharacterBodyProfileSet
   animations: CharacterAnimationSet
 }

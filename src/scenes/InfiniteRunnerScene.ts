@@ -1,10 +1,11 @@
 import * as Phaser from 'phaser'
 import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
-import { SCENE_KEYS } from '../config/keys'
+import { INFINITE_RUNNER_COLORS } from '../config/colors'
+import { CHARACTER_KEYS, SCENE_KEYS } from '../config/keys'
 import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager'
 import { ChunkManager } from '../world/ChunkManager'
-import { TILE_RENDERED } from '../world/ChunkBuilder'
+import { calculateTileGrid } from '../world/ChunkBuilder'
 
 type MoveDirection = -1 | 0 | 1
 
@@ -12,6 +13,9 @@ interface RunnerKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
   attack: Phaser.Input.Keyboard.Key
   attack3: Phaser.Input.Keyboard.Key
   reset: Phaser.Input.Keyboard.Key
+  grid: Phaser.Input.Keyboard.Key
+  gridSize: Phaser.Input.Keyboard.Key
+  collision: Phaser.Input.Keyboard.Key
 }
 
 export default class InfiniteRunnerScene extends Phaser.Scene {
@@ -40,8 +44,6 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
    */
   private groundBody!: Phaser.GameObjects.Rectangle
 
-  private tuningHud!: Phaser.GameObjects.Text
-
   private previewScrollX = 0
 
   private lastTapDirection: MoveDirection = 0
@@ -51,6 +53,20 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   private runDirection: MoveDirection = 0
 
   private airborneScrollVelocity = 0
+
+  private gridGraphics: Phaser.GameObjects.Graphics | null = null
+
+  private collisionGraphics: Phaser.GameObjects.Graphics | null = null
+
+  private isGridVisible = false
+
+  private isCollisionVisible = true
+
+  private tileRendered = 0 // Calculated based on scene height
+
+  private gridCellSizes: number[] = []
+
+  private gridCellSizeIndex = 1
 
   /** Y below which the player is considered to have fallen into a gap. */
   private deathZoneY = 0
@@ -65,15 +81,30 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   public create(): void {
     const width = this.scale.width
     const height = this.scale.height
-    const gridHeight = height / 14
+
+    // Calculate responsive tile grid: ensures at least 20 blocks fit vertically
+    const grid = calculateTileGrid(height)
+    this.tileRendered = grid.tileRendered
+
+    // Set up grid cell size options for debug overlay (G key to cycle)
+    this.gridCellSizes = [
+      this.tileRendered / 2,
+      this.tileRendered,
+      this.tileRendered * 2,
+    ]
 
     // Ground top aligns to the nearest tile boundary for clean tile rendering
-    const rawGroundTop = height - gridHeight * 3
-    this.groundY = Math.floor(rawGroundTop / TILE_RENDERED) * TILE_RENDERED
-    this.deathZoneY = height + TILE_RENDERED * 2
+    const rawGroundTop = height - this.tileRendered * 2
+    this.groundY =
+      Math.floor(rawGroundTop / this.tileRendered) * this.tileRendered
+    this.deathZoneY = height + this.tileRendered * 2
 
-    this.cameras.main.setBackgroundColor('#1a1a2e')
-    this.parallaxManager = new ParallaxBackgroundManager(this, width, height)
+    this.cameras.main.setBackgroundColor(INFINITE_RUNNER_COLORS.base)
+    this.parallaxManager = new ParallaxBackgroundManager(
+      this,
+      width,
+      this.tileRendered
+    )
     this.physics.world.setBounds(0, -height * 4, width, height * 6)
     this.cameras.main.setBounds(0, 0, width, height)
 
@@ -87,8 +118,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
         width,
         height - this.groundY,
         0x000000,
-        0  // fully transparent — tiles are drawn over this
+        0 // fully transparent — tiles are drawn over this
       )
+      // Ground body must be top-aligned to groundY; default center origin causes a vertical offset.
+      .setOrigin(0.5, 0)
       .setDepth(7)
 
     this.physics.add.existing(this.groundBody, true)
@@ -97,14 +130,16 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.chunkManager = new ChunkManager(this, this.groundY, width)
 
     // ── Player ────────────────────────────────────────────────────────────
-    const knight = CharacterRegistry.getById('knight')
+    const playerDriver = CharacterRegistry.getById(
+      CHARACTER_KEYS.SKELETON_WARRIOR_DEFAULT
+    )
     this.player = new PlayableCharacter(
       this,
       width * 0.25,
-      this.groundY - gridHeight * 1.5,
-      knight
+      this.groundY - this.tileRendered,
+      playerDriver
     )
-    this.player.setDepth(20)
+    this.player.setDepth(20).setVisible(false)
     this.physics.add.collider(this.player, this.groundBody)
     this.physics.add.collider(this.player, this.chunkManager.platformGroup)
 
@@ -125,34 +160,23 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       attack: Phaser.Input.Keyboard.KeyCodes.A,
       attack3: Phaser.Input.Keyboard.KeyCodes.F,
       reset: Phaser.Input.Keyboard.KeyCodes.R,
+      grid: Phaser.Input.Keyboard.KeyCodes.G,
+      gridSize: Phaser.Input.Keyboard.KeyCodes.H,
+      collision: Phaser.Input.Keyboard.KeyCodes.C,
     }) as RunnerKeys
 
-    this.add.text(
-      16,
-      16,
-      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart',
-      {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffffff',
-        backgroundColor: '#3f7a7a',
-      }
-    )
+    if (this.isGridVisible) {
+      this.drawGridOverlay()
+    }
 
-    this.tuningHud = this.add
-      .text(16, 42, '', {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#dce6ff',
-        backgroundColor: '#1d2f43',
-        padding: { x: 6, y: 4 },
-      })
-      .setDepth(100)
+    this.drawCollisionOverlay()
 
     // Cleanup on shutdown
     this.events.on('shutdown', () => {
       this.parallaxManager.destroy()
       this.chunkManager.destroy()
+      this.clearGridOverlay()
+      this.clearCollisionOverlay()
     })
   }
 
@@ -164,6 +188,31 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(cursorKeys.reset)) {
       this.scene.restart()
       return
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.grid)) {
+      this.isGridVisible = !this.isGridVisible
+
+      if (!this.isGridVisible) {
+        this.clearGridOverlay()
+      }
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.gridSize)) {
+      this.gridCellSizeIndex =
+        (this.gridCellSizeIndex + 1) % this.gridCellSizes.length
+
+      if (this.isGridVisible) {
+        this.drawGridOverlay()
+      }
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(cursorKeys.collision)) {
+      this.isCollisionVisible = !this.isCollisionVisible
+
+      if (!this.isCollisionVisible) {
+        this.clearCollisionOverlay()
+      }
     }
 
     // Respawn if player fell into a gap
@@ -180,6 +229,24 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.player.refreshAnimationState()
 
     this.updateScrollAndLock(direction)
+
+    this.snapPlayerToGround()
+  }
+
+  private snapPlayerToGround(): void {
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+
+    // Keep grounded frames flush with the collision plane to avoid visual hover on pixel-art sprites.
+    if (!body.blocked.down || body.velocity.y !== 0) {
+      return
+    }
+
+    const delta = this.groundY - body.bottom
+
+    if (Math.abs(delta) <= 2) {
+      this.player.setY(this.player.y + delta)
+      body.updateFromGameObject()
+    }
   }
 
   private updateForcedGroundMotionState(direction: MoveDirection): void {
@@ -243,12 +310,26 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     )
     this.previewScrollX = Math.round(this.previewScrollX)
 
+    const playerWorldX = this.previewScrollX + this.player.x
+    const isPlayerInGap = this.chunkManager.isPlayerInGap(playerWorldX)
+    const groundBody = this.groundBody.body as Phaser.Physics.Arcade.StaticBody
+    groundBody.enable = !isPlayerInGap
+
     const lockOffsetX = this.scale.width * this.movementConfig.lockScreenRatio
     this.player.setX(Math.round(lockOffsetX))
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
     this.chunkManager.update(this.previewScrollX)
+
+    if (this.isGridVisible) {
+      this.drawGridOverlay()
+    }
+
+    if (this.isCollisionVisible) {
+      this.drawCollisionOverlay()
+    }
+
     this.updateTuningHud(direction, isRunIntent, isGrounded, scrollSpeed)
   }
 
@@ -279,28 +360,101 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   }
 
   private updateTuningHud(
-    direction: MoveDirection,
-    isRunning: boolean,
-    isGrounded: boolean,
-    scrollSpeed: number
+    _direction: MoveDirection,
+    _isRunning: boolean,
+    _isGrounded: boolean,
+    _scrollSpeed: number
   ): void {
-    const config = this.movementConfig
-    let activeState = 'walk'
-    if (direction === 0) {
-      activeState = 'idle'
-    } else if (isRunning) {
-      activeState = 'run'
+    // HUD intentionally disabled for clean visual layout while tuning terrain.
+  }
+
+  private drawGridOverlay(): void {
+    this.clearGridOverlay()
+
+    const width = this.scale.width
+    const height = this.scale.height
+    const cellSize = this.gridCellSizes[this.gridCellSizeIndex]
+    const offsetX = ((this.previewScrollX % cellSize) + cellSize) % cellSize
+    const top = -cellSize
+    const bottom = height + cellSize
+
+    const graphics = this.add.graphics()
+    graphics.setDepth(200)
+    graphics.lineStyle(1, 0x39ff14, 0.7)
+
+    for (let x = -offsetX; x <= width; x += cellSize) {
+      graphics.beginPath()
+      graphics.moveTo(Math.round(x), top)
+      graphics.lineTo(Math.round(x), bottom)
+      graphics.strokePath()
     }
 
-    this.tuningHud.setText([
-      `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
-      `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
-      `chunks=${this.chunkManager.totalChunksGenerated} active=${this.chunkManager.activeChunkCount}`,
-      `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
-      `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
-      `airControlMultiplier=${config.airControlMultiplier} airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)}`,
-      `airVel=${this.airborneScrollVelocity.toFixed(1)}`,
-    ])
+    for (let y = top; y <= bottom; y += cellSize) {
+      graphics.beginPath()
+      graphics.moveTo(0, Math.round(y))
+      graphics.lineTo(width, Math.round(y))
+      graphics.strokePath()
+    }
+
+    this.gridGraphics = graphics
+  }
+
+  private clearGridOverlay(): void {
+    if (this.gridGraphics) {
+      this.gridGraphics.destroy()
+      this.gridGraphics = null
+    }
+  }
+
+  private drawCollisionOverlay(): void {
+    this.clearCollisionOverlay()
+
+    const graphics = this.add.graphics()
+    graphics.setDepth(210)
+
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body
+    graphics.lineStyle(2, 0xff3366, 0.95)
+    graphics.strokeRect(
+      Math.round(playerBody.x),
+      Math.round(playerBody.y),
+      Math.round(playerBody.width),
+      Math.round(playerBody.height)
+    )
+
+    const groundBody = this.groundBody.body as Phaser.Physics.Arcade.StaticBody
+    if (groundBody.enable) {
+      graphics.lineStyle(2, 0x00e5ff, 0.9)
+      graphics.strokeRect(
+        Math.round(groundBody.x),
+        Math.round(groundBody.y),
+        Math.round(groundBody.width),
+        Math.round(groundBody.height)
+      )
+    }
+
+    graphics.lineStyle(2, 0xffd166, 0.9)
+    for (const child of this.chunkManager.platformGroup.getChildren()) {
+      const body = (child as Phaser.GameObjects.Rectangle)
+        .body as Phaser.Physics.Arcade.StaticBody
+
+      if (!body.enable || body.x < -5000) continue
+
+      graphics.strokeRect(
+        Math.round(body.x),
+        Math.round(body.y),
+        Math.round(body.width),
+        Math.round(body.height)
+      )
+    }
+
+    this.collisionGraphics = graphics
+  }
+
+  private clearCollisionOverlay(): void {
+    if (this.collisionGraphics) {
+      this.collisionGraphics.destroy()
+      this.collisionGraphics = null
+    }
   }
 
   private getDirectionFromInput(

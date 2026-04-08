@@ -3,6 +3,7 @@ import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
 import { AbstractCharacterDefinition } from '../characters/AbstractCharacterDefinition'
+import { BodyDebugPanel } from '../debug/BodyDebugPanel'
 
 interface SandboxKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
   attack: Phaser.Input.Keyboard.Key
@@ -12,6 +13,7 @@ interface SandboxKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
   spawnFaster: Phaser.Input.Keyboard.Key
   maxEnemiesDown: Phaser.Input.Keyboard.Key
   maxEnemiesUp: Phaser.Input.Keyboard.Key
+  bodyDebug: Phaser.Input.Keyboard.Key
 }
 
 interface CharacterDisplay {
@@ -53,6 +55,8 @@ export default class CharacterSandboxScene extends Phaser.Scene {
   private statusLabel!: Phaser.GameObjects.Text
 
   private keys!: SandboxKeys
+
+  private bodyDebugPanel?: BodyDebugPanel
 
   private lastTapDirection: -1 | 0 | 1 = 0
 
@@ -98,6 +102,7 @@ export default class CharacterSandboxScene extends Phaser.Scene {
       spawnFaster: Phaser.Input.Keyboard.KeyCodes.E,
       maxEnemiesDown: Phaser.Input.Keyboard.KeyCodes.Z,
       maxEnemiesUp: Phaser.Input.Keyboard.KeyCodes.X,
+      bodyDebug: Phaser.Input.Keyboard.KeyCodes.B,
     }) as SandboxKeys
 
     this.floor = this.add.rectangle(
@@ -119,7 +124,7 @@ export default class CharacterSandboxScene extends Phaser.Scene {
         'R = restart encounter',
         'One enemy at a time; next enemy spawns after kill',
         'Enemies spawn to the right of the knight',
-        'Q/E = slower/faster next enemy delay',
+        'Q/E = slower/faster next enemy delay  |  B = body debug',
       ].join('\n'),
       {
         fontFamily: 'monospace',
@@ -136,6 +141,10 @@ export default class CharacterSandboxScene extends Phaser.Scene {
     })
 
     this.spawnPlayerKnight()
+
+    this.bodyDebugPanel = new BodyDebugPanel((state, body) => {
+      this.player?.character.setDebugBodyOverride(state, body)
+    })
 
     for (let i = 0; i < this.minEnemies; i += 1) {
       this.spawnEnemy()
@@ -156,6 +165,25 @@ export default class CharacterSandboxScene extends Phaser.Scene {
       direction = -1
     } else if (this.keys.right.isDown) {
       direction = 1
+    }
+
+    const bodyDebugPressed = Phaser.Input.Keyboard.JustDown(this.keys.bodyDebug)
+    if (bodyDebugPressed) {
+      this.bodyDebugPanel?.toggle()
+    }
+
+    // Update the debug panel display every frame
+    if (this.bodyDebugPanel?.isVisible()) {
+      const player = this.player.character
+      this.bodyDebugPanel.update(
+        player.getCurrentState(),
+        player.getCurrentBodyValues()
+      )
+    }
+
+    // Suppress game keyboard when the debug panel's inputs have focus
+    if (this.bodyDebugPanel?.hasFocus()) {
+      return
     }
 
     const jumpPressed =
@@ -558,5 +586,7 @@ export default class CharacterSandboxScene extends Phaser.Scene {
 
   public shutdown(): void {
     this.spawnTimer?.remove(false)
+    this.bodyDebugPanel?.destroy()
+    this.bodyDebugPanel = undefined
   }
 }
