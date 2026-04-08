@@ -3,17 +3,14 @@ import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
 import { ParallaxBackgroundManager } from '../managers/ParallaxBackgroundManager'
-import { TerrainManager } from '../managers/TerrainManager'
+import { ChunkManager } from '../world/ChunkManager'
+import { TILE_RENDERED } from '../world/ChunkBuilder'
 
 type MoveDirection = -1 | 0 | 1
 
 interface RunnerKeys extends Phaser.Types.Input.Keyboard.CursorKeys {
   attack: Phaser.Input.Keyboard.Key
   attack3: Phaser.Input.Keyboard.Key
-  debugSeed: Phaser.Input.Keyboard.Key
-  debugTerrain: Phaser.Input.Keyboard.Key
-  debugGrid: Phaser.Input.Keyboard.Key
-  rerollTerrain: Phaser.Input.Keyboard.Key
   reset: Phaser.Input.Keyboard.Key
 }
 
@@ -32,9 +29,16 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private parallaxManager!: ParallaxBackgroundManager
 
+  private chunkManager!: ChunkManager
+
   private player!: PlayableCharacter
 
-  private terrainManager!: TerrainManager
+  /**
+   * Invisible physics rectangle that keeps the player standing on the ground.
+   * Positioned at groundTop so the top surface aligns with the tile layer.
+   * Hidden by the tile visuals drawn on top.
+   */
+  private groundBody!: Phaser.GameObjects.Rectangle
 
   private tuningHud!: Phaser.GameObjects.Text
 
@@ -48,9 +52,11 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
 
   private airborneScrollVelocity = 0
 
-  private deterministicTerrainDebug = false
+  /** Y below which the player is considered to have fallen into a gap. */
+  private deathZoneY = 0
 
-  private terrainDebugSeed = 1337
+  /** Y position of the top of the ground band (screen pixels). */
+  private groundY = 0
 
   constructor() {
     super({ key: SCENE_KEYS.INFINITE_RUNNER })
@@ -59,23 +65,48 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
   public create(): void {
     const width = this.scale.width
     const height = this.scale.height
+    const gridHeight = height / 14
 
-    this.cameras.main.setBackgroundColor('#52997c')
+    // Ground top aligns to the nearest tile boundary for clean tile rendering
+    const rawGroundTop = height - gridHeight * 3
+    this.groundY = Math.floor(rawGroundTop / TILE_RENDERED) * TILE_RENDERED
+    this.deathZoneY = height + TILE_RENDERED * 2
+
+    this.cameras.main.setBackgroundColor('#1a1a2e')
     this.parallaxManager = new ParallaxBackgroundManager(this, width, height)
-    this.terrainManager = new TerrainManager(this, width, height)
-    this.physics.world.setBounds(0, 0, width, height)
+    this.physics.world.setBounds(0, -height * 4, width, height * 6)
     this.cameras.main.setBounds(0, 0, width, height)
 
+    // ── Physics ground band ────────────────────────────────────────────────
+    // A thin static rectangle at groundY so the player lands on the surface
+    // tile row. The visible tiles are drawn on top by ChunkManager.
+    this.groundBody = this.add
+      .rectangle(
+        width * 0.5,
+        this.groundY,
+        width,
+        height - this.groundY,
+        0x000000,
+        0  // fully transparent — tiles are drawn over this
+      )
+      .setDepth(7)
+
+    this.physics.add.existing(this.groundBody, true)
+
+    // ── Chunk world ────────────────────────────────────────────────────────
+    this.chunkManager = new ChunkManager(this, this.groundY, width)
+
+    // ── Player ────────────────────────────────────────────────────────────
     const knight = CharacterRegistry.getById('knight')
     this.player = new PlayableCharacter(
       this,
       width * 0.25,
-      this.terrainManager.getSpawnSurfaceY() - 96,
+      this.groundY - gridHeight * 1.5,
       knight
     )
     this.player.setDepth(20)
-    this.terrainManager.bindPlayer(this.player)
-    this.terrainManager.update(0)
+    this.physics.add.collider(this.player, this.groundBody)
+    this.physics.add.collider(this.player, this.chunkManager.platformGroup)
 
     this.cameras.main.scrollX = 0
 
@@ -93,17 +124,13 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       space: Phaser.Input.Keyboard.KeyCodes.SPACE,
       attack: Phaser.Input.Keyboard.KeyCodes.A,
       attack3: Phaser.Input.Keyboard.KeyCodes.F,
-      debugSeed: Phaser.Input.Keyboard.KeyCodes.G,
-      debugTerrain: Phaser.Input.Keyboard.KeyCodes.T,
-      debugGrid: Phaser.Input.Keyboard.KeyCodes.V,
-      rerollTerrain: Phaser.Input.Keyboard.KeyCodes.N,
       reset: Phaser.Input.Keyboard.KeyCodes.R,
     }) as RunnerKeys
 
     this.add.text(
       16,
       16,
-      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart | T = Terrain Debug | G = Seed Mode | N = Reroll | V = Grid View',
+      'Left/Right = Walk | Double-tap = Run | Up/Space = Jump | A/F = Attack | R = Restart',
       {
         fontFamily: 'monospace',
         fontSize: '12px',
@@ -125,7 +152,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     // Cleanup on shutdown
     this.events.on('shutdown', () => {
       this.parallaxManager.destroy()
-      this.terrainManager.destroy()
+      this.chunkManager.destroy()
     })
   }
 
@@ -139,28 +166,10 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
       return
     }
 
-    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugTerrain)) {
-      this.terrainManager.setDebugVisible(!this.terrainManager.isDebugVisible())
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugGrid)) {
-      this.terrainManager.toggleGridDebug()
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(cursorKeys.debugSeed)) {
-      this.deterministicTerrainDebug = !this.deterministicTerrainDebug
-      this.resetTerrainRun(
-        this.deterministicTerrainDebug ? this.terrainDebugSeed : undefined
-      )
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(cursorKeys.rerollTerrain)) {
-      if (this.deterministicTerrainDebug) {
-        this.terrainDebugSeed += 1
-        this.resetTerrainRun(this.terrainDebugSeed)
-      } else {
-        this.resetTerrainRun()
-      }
+    // Respawn if player fell into a gap
+    if (this.player.y > this.deathZoneY) {
+      this.scene.restart()
+      return
     }
 
     this.updateForcedGroundMotionState(direction)
@@ -239,7 +248,7 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     body.setVelocityX(0)
 
     this.parallaxManager.update(this.previewScrollX)
-    this.terrainManager.update(this.previewScrollX)
+    this.chunkManager.update(this.previewScrollX)
     this.updateTuningHud(direction, isRunIntent, isGrounded, scrollSpeed)
   }
 
@@ -286,23 +295,12 @@ export default class InfiniteRunnerScene extends Phaser.Scene {
     this.tuningHud.setText([
       `state=${activeState} grounded=${isGrounded ? 'yes' : 'no'} dir=${direction}`,
       `scrollSpeed=${scrollSpeed.toFixed(1)} bgOffset=${this.previewScrollX}`,
-      this.terrainManager.getDebugSummary(),
-      `terrainDebug=${this.terrainManager.isDebugVisible() ? 'on' : 'off'} deterministicSeed=${this.deterministicTerrainDebug ? this.terrainDebugSeed : 'off'}`,
+      `chunks=${this.chunkManager.totalChunksGenerated} active=${this.chunkManager.activeChunkCount}`,
       `lockScreenRatio=${config.lockScreenRatio.toFixed(4)} runDoubleTapWindowMs=${config.runDoubleTapWindowMs}`,
       `walkScrollSpeed=${config.walkScrollSpeed} runScrollSpeed=${config.runScrollSpeed}`,
       `airControlMultiplier=${config.airControlMultiplier} airborneMomentumRetention=${config.airborneMomentumRetention.toFixed(3)}`,
       `airVel=${this.airborneScrollVelocity.toFixed(1)}`,
     ])
-  }
-
-  private resetTerrainRun(seed?: number): void {
-    this.previewScrollX = 0
-    this.airborneScrollVelocity = 0
-    this.runDirection = 0
-    this.player.setRunEnabled(false)
-    this.player.resetToSpawn()
-    this.terrainManager.reset({ seed })
-    this.terrainManager.update(0)
   }
 
   private getDirectionFromInput(
