@@ -1,51 +1,38 @@
-# Monster Run
+# Phaser Character Sandbox
 
-This project was bootstrapped with [Phaser CLI][1] and adapted into Monster Run,
-a side-scrolling action runner used to validate sprite sheets and gameplay
-systems.
+This repo now boots directly into a worker-driven Wave Function Collapse runner
+prototype. Terrain generation happens off the main thread, chunks seam from the
+previous chunk's right edge, and stale chunks are destroyed behind the camera.
 
 ## Usage
 
 ### Running in Development
 
 ```bash
-npm start
-# or
-yarn start
+npm run dev
 ```
 
 ### Build for Production
 
 ```bash
 npm run build
-# or
-yarn run build
 ```
 
-## Current Scope
+## Current Runtime
 
-- Loads the skeleton and zombie sprite sheets from the local project asset
-  registry.
-- Registers a reusable animation map for each character.
-- Starts a sandbox scene with a simple floor, gravity, and keyboard controls.
-- Lets you swap between the two character definitions without changing scene
-  code.
+- `src/main.ts` boots straight into `src/game/scenes/GameScene.ts`.
+- `src/game/tilemaps/wfc.worker.ts` generates 20x60 chunks off the main thread.
+- `src/game/tilemaps/WFCGenerator.ts` performs entropy-based collapse with BFS
+  propagation.
+- `src/game/tilemaps/ChunkManager.ts` requests, activates, and destroys chunks
+  as the runner advances.
 
 ## Controls
 
-- `1`: spawn skeleton
-- `2`: spawn zombie
-- `Left` / `Right`: move
-- `Up` or `Space`: jump
-- `A`: attack animation
-- `H`: hurt animation
-- `R`: reset to center spawn
+- `Space`: jump
 
-## Acknowledgements
+## Notes
 
-Phaser CLI is based on [Create React App][2] by Facebook and [vue-cli][3] by
-Evan You.
-
-[1]: https://github.com/phaser-cli/phaser-cli
-[2]: https://github.com/facebook/create-react-app
-[3]: https://github.com/vuejs/vue-cli
+- The current player is a simple Phaser rectangle so terrain generation and
+  chunk lifecycle can be tuned in isolation.
+- The project uses Vite-native module workers, not webpack.

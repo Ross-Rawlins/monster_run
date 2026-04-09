@@ -1,7 +1,10 @@
-export const SCENE_KEYS = Object.freeze({
-  BOOT: 'BOOT_SCENE',
-  CHARACTER_SANDBOX: 'CHARACTER_SANDBOX_SCENE',
-  INFINITE_RUNNER: 'INFINITE_RUNNER_SCENE',
+export const RUNNER_ASSET_KEYS = Object.freeze({
+  BACKGROUND_ATLAS: 'background-atlas',
+  BACKGROUND_ATLAS_JSON: 'background-atlas-json',
+  TILES_ATLAS: 'tiles-atlas',
+  TILES_ATLAS_JSON: 'tiles-atlas-json',
+  OBJECTS_ATLAS: 'objects-atlas',
+  OBJECTS_ATLAS_JSON: 'objects-atlas-json',
 })
 
 export const CHARACTER_KEYS = Object.freeze({
@@ -41,29 +44,6 @@ export const CHARACTER_KEYS = Object.freeze({
 })
 
 export type CharacterId = (typeof CHARACTER_KEYS)[keyof typeof CHARACTER_KEYS]
-
-/**
- * Asset keys for infinite runner game.
- */
-export const RUNNER_ASSET_KEYS = Object.freeze({
-  // Background parallax atlas
-  BACKGROUND_ATLAS: 'background-atlas',
-  BACKGROUND_ATLAS_JSON: 'background-atlas-json',
-  // Tiles/platforms atlas (combined sheet — used by GroundManager legacy)
-  TILES_ATLAS: 'tiles-atlas',
-  TILES_ATLAS_JSON: 'tiles-atlas-json',
-  // Individual grass surface tiles (public/assets/tiles/Tilles_Platforms_Grass.*)
-  // 65 tiles × 16 × 16 px laid out in a single horizontal row.
-  TILE_ATLAS_GRASS: 'tile-atlas-grass',
-  TILE_ATLAS_GRASS_JSON: 'tile-atlas-grass-json',
-  // Individual ground fill tiles (public/assets/tiles/Tilles_Platforms_Ground.*)
-  // 149 tiles × 16 × 16 px in a 2-column vertical stack.
-  TILE_ATLAS_GROUND: 'tile-atlas-ground',
-  TILE_ATLAS_GROUND_JSON: 'tile-atlas-ground-json',
-  // Game objects atlas
-  OBJECTS_ATLAS: 'objects-atlas',
-  OBJECTS_ATLAS_JSON: 'objects-atlas-json',
-})
 
 /**
  * Atlas frame keys loaded from public/assets/tiles/tiles.json.

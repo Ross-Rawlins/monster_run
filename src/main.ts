@@ -1,8 +1,6 @@
 import * as Phaser from 'phaser'
 import { INFINITE_RUNNER_COLORS } from './config/colors'
-import BootScene from './scenes/BootScene'
-import CharacterSandboxScene from './scenes/CharacterSandboxScene'
-import InfiniteRunnerScene from './scenes/InfiniteRunnerScene'
+import GameScene from './game/scenes/GameScene'
 
 declare global {
   var game: Phaser.Game | undefined
@@ -11,8 +9,6 @@ declare global {
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'app',
-  width: 960,
-  height: 580, // Changed from 576 to 580 to divide evenly by 20 (580 / 20 = 29px blocks)
   backgroundColor: INFINITE_RUNNER_COLORS.base,
   pixelArt: true,
   render: {
@@ -22,8 +18,10 @@ const config: Phaser.Types.Core.GameConfig = {
     roundPixels: true,
   },
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: '100%',
+    height: '100%',
   },
   physics: {
     default: 'arcade',
@@ -32,7 +30,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, CharacterSandboxScene, InfiniteRunnerScene],
+  scene: [GameScene],
 }
 
 const game = new Phaser.Game(config)
