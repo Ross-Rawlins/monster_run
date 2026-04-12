@@ -50,11 +50,12 @@ export class WFCGenerator {
 
     this.generateGround(tiles)
     this.generatePlatforms(tiles)
-    this.generateSupports(tiles)
+    const supportTiles = this.generateSupports(tiles)
     this.applySeededLeftColumn(tiles)
 
     return {
       tiles,
+      supportTiles,
       rightColumn: tiles.map((row) => row[this.width - 1]),
     }
   }
@@ -78,14 +79,14 @@ export class WFCGenerator {
     platformGenerator.placePlatforms(tiles)
   }
 
-  private generateSupports(tiles: Tile[][]): void {
+  private generateSupports(tiles: Tile[][]): Tile[][] {
     const supportGenerator = new SupportGenerator({
       width: this.width,
       height: this.height,
       random: this.random,
     })
 
-    supportGenerator.placeSupports(tiles)
+    return supportGenerator.placeSupports(tiles)
   }
 
   private applySeededLeftColumn(tiles: Tile[][]): void {

@@ -20,6 +20,8 @@ interface ActiveChunk {
   layer: Phaser.Tilemaps.TilemapLayer
   visualTilemap?: Phaser.Tilemaps.Tilemap
   visualLayer?: Phaser.Tilemaps.TilemapLayer
+  foregroundVisualTilemap?: Phaser.Tilemaps.Tilemap
+  foregroundVisualLayer?: Phaser.Tilemaps.TilemapLayer
   collider: Phaser.Physics.Arcade.Collider
   staticGroup?: Phaser.Physics.Arcade.StaticGroup | null
   lifecycle: ChunkLifecycle
@@ -93,6 +95,8 @@ export class ChunkManager {
       activeChunk.lifecycle.status = 'destroyed'
       activeChunk.collider.destroy()
       activeChunk.staticGroup?.clear(true, true)
+      activeChunk.foregroundVisualLayer?.destroy()
+      activeChunk.foregroundVisualTilemap?.destroy()
       activeChunk.visualLayer?.destroy()
       activeChunk.visualTilemap?.destroy()
       activeChunk.layer.destroy()
@@ -113,6 +117,8 @@ export class ChunkManager {
       activeChunk.lifecycle.status = 'destroyed'
       activeChunk.collider.destroy()
       activeChunk.staticGroup?.clear(true, true)
+      activeChunk.foregroundVisualLayer?.destroy()
+      activeChunk.foregroundVisualTilemap?.destroy()
       activeChunk.visualLayer?.destroy()
       activeChunk.visualTilemap?.destroy()
       activeChunk.layer.destroy()
@@ -235,9 +241,13 @@ export class ChunkManager {
         row >= groundStartRow ? Tile.GROUND : Tile.EMPTY
       )
     )
+    const supportTiles: Tile[][] = Array.from({ length: GRID_HEIGHT }, () =>
+      Array.from({ length: GRID_WIDTH }, () => Tile.EMPTY)
+    )
 
     return {
       tiles,
+      supportTiles,
       rightColumn: tiles.map((row) => row[GRID_WIDTH - 1]),
     }
   }

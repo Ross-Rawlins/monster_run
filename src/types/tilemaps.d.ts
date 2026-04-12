@@ -24,6 +24,7 @@ export interface Cell extends GridPosition {
 
 export interface Chunk {
   tiles: Tile[][]
+  supportTiles: Tile[][]
   rightColumn: Tile[]
 }
 

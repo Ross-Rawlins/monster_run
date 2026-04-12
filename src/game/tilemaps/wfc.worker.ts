@@ -4,9 +4,25 @@ import type { WorkerMessage, WorkerResponse } from '../../types/tilemaps'
 import { WFCGenerator } from './WFCGenerator'
 
 const workerScope = self as DedicatedWorkerGlobalScope
+const RUN_SEED = createRunSeed()
+
+function createRunSeed(): number {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.getRandomValues === 'function'
+  ) {
+    const values = new Uint32Array(1)
+    crypto.getRandomValues(values)
+    return values[0] >>> 0
+  }
+
+  return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0
+}
 
 function buildAttemptSeed(chunkIndex: number, attempt: number): number {
-  return (chunkIndex + 1) * 2654435761 + attempt * 1013904223
+  const chunkSeed = Math.imul(chunkIndex + 1, 2654435761)
+  const attemptSeed = Math.imul(attempt, 1013904223)
+  return (RUN_SEED ^ chunkSeed ^ attemptSeed) >>> 0
 }
 
 workerScope.onmessage = (event: MessageEvent<WorkerMessage>) => {

@@ -5,6 +5,7 @@ import { clamp, randomInt } from '../generators/GenerationMath'
 interface PlatformSegment {
   startColumn: number
   endColumn: number
+  topRow: number
   bottomRow: number
 }
 
@@ -30,58 +31,169 @@ export class SupportGenerator {
     this.random = options.random
   }
 
-  public placeSupports(tiles: Tile[][]): void {
+  public placeSupports(tiles: Tile[][]): Tile[][] {
+    const supportTiles = Array.from({ length: this.height }, () =>
+      Array.from({ length: this.width }, () => Tile.EMPTY)
+    )
+
     const segments = this.findPlatformSegments(tiles)
 
     for (const segment of segments) {
-      this.buildSupportForSegment(tiles, segment)
+      this.buildSupportForSegment(tiles, supportTiles, segment)
     }
+
+    return supportTiles
   }
 
   private buildSupportForSegment(
     tiles: Tile[][],
+    supportTiles: Tile[][],
     segment: PlatformSegment
   ): void {
-    const startRow = segment.bottomRow + 1
-    if (startRow >= this.height) {
+    const minUnderPlatformWidth = 3
+    const maxAbovePlatformRows = 4
+    const minAbovePlatformRows = 3
+
+    const underPlatformRow = segment.bottomRow + 1
+    if (underPlatformRow >= this.height) {
+      return
+    }
+    if (this.height - underPlatformRow < 3) {
       return
     }
 
-    const minWidth = SUPPORT_GENERATION_CONSTRAINTS.minSupportWidth
-    const maxFlare = Math.max(0, SUPPORT_GENERATION_CONSTRAINTS.maxFlareColumns)
-    const flareTarget = maxFlare > 0 ? randomInt(0, maxFlare, this.random) : 0
-
     const segmentWidth = segment.endColumn - segment.startColumn + 1
-    const topSpan = this.ensureMinWidth(
-      {
-        left: segment.startColumn,
-        right: segment.endColumn,
-      },
-      minWidth
+    const guaranteedAnchorWidth = clamp(
+      Math.max(
+        minUnderPlatformWidth,
+        SUPPORT_GENERATION_CONSTRAINTS.minSupportWidth
+      ),
+      1,
+      segmentWidth
     )
 
-    const totalRows = Math.max(1, this.height - startRow)
+    const anchorSpan = this.buildAnchorSpan(segment, guaranteedAnchorWidth)
+
+    const shouldStartAbovePlatform = this.random() < 0.85
+    const abovePlatformRows = shouldStartAbovePlatform
+      ? randomInt(minAbovePlatformRows, maxAbovePlatformRows, this.random)
+      : 0
+    const startRow = Math.max(0, segment.topRow - abovePlatformRows)
+
+    const topCapWidth = clamp(
+      randomInt(2, Math.max(2, guaranteedAnchorWidth - 1), this.random),
+      1,
+      guaranteedAnchorWidth
+    )
+    const topCapCenter = Math.round((anchorSpan.left + anchorSpan.right) * 0.5)
+
+    const maxFlare = Math.max(0, SUPPORT_GENERATION_CONSTRAINTS.maxFlareColumns)
+    const supportDepthToBottom = Math.max(1, this.height - 1 - underPlatformRow)
+    const baseBottomFanOut = Math.max(
+      maxFlare + 6,
+      Math.floor(supportDepthToBottom * 0.65)
+    )
+    const maxBottomFanOutLeft = baseBottomFanOut + randomInt(0, 2, this.random)
+    const maxBottomFanOutRight = baseBottomFanOut + randomInt(0, 2, this.random)
+
+    const jitterLimit = Math.max(
+      0,
+      SUPPORT_GENERATION_CONSTRAINTS.maxHorizontalJitterPerRow
+    )
+    const jitterStride = Math.max(
+      1,
+      SUPPORT_GENERATION_CONSTRAINTS.edgeChangeStrideRows
+    )
+    let horizontalShift = 0
+
+    const trimTailRows = randomInt(
+      SUPPORT_GENERATION_CONSTRAINTS.trimmedEdgeTailMinRows,
+      SUPPORT_GENERATION_CONSTRAINTS.trimmedEdgeTailMaxRows,
+      this.random
+    )
+    const trimSide = randomInt(0, 2, this.random)
+    let previousWritableSpan: Span | null = null
 
     for (let row = startRow; row < this.height; row += 1) {
-      const depth = row - startRow
-      const progress = depth / totalRows
-      const flare = Math.round(flareTarget * progress)
+      const depthFromStart = row - startRow
 
-      // Rule-based span growth from platform anchor to lower rows.
-      const desiredSpan = this.ensureMinWidth(
-        {
-          left: topSpan.left - flare,
-          right: topSpan.right + flare,
-        },
-        Math.max(minWidth, segmentWidth)
-      )
-
-      const writableSpan = this.resolveWritableSpan(tiles, row, desiredSpan)
-      if (!writableSpan) {
-        continue
+      if (
+        jitterLimit > 0 &&
+        depthFromStart > 0 &&
+        depthFromStart % jitterStride === 0
+      ) {
+        horizontalShift = clamp(
+          horizontalShift + randomInt(-1, 1, this.random),
+          -jitterLimit,
+          jitterLimit
+        )
       }
 
-      this.paintSupportRow(tiles, row, writableSpan)
+      let desired: Span
+
+      if (row <= underPlatformRow) {
+        // Keep a guaranteed direct under-platform contact row so supports are
+        // structurally anchored below the platform, not only touching sides.
+        if (row === underPlatformRow) {
+          desired = anchorSpan
+        } else {
+          const prePlatformTotal = Math.max(1, underPlatformRow - startRow)
+          const prePlatformProgress = (row - startRow) / prePlatformTotal
+          const blendedCenter = Math.round(
+            topCapCenter * (1 - prePlatformProgress) +
+              Math.round((anchorSpan.left + anchorSpan.right) * 0.5) *
+                prePlatformProgress
+          )
+          const blendedWidth = Math.round(
+            topCapWidth * (1 - prePlatformProgress) +
+              guaranteedAnchorWidth * prePlatformProgress
+          )
+          desired = this.buildSpanFromCenter(
+            blendedCenter + horizontalShift,
+            blendedWidth
+          )
+        }
+      } else {
+        const downDepth = row - underPlatformRow
+        const downProgress =
+          downDepth / Math.max(1, this.height - 1 - underPlatformRow)
+        const triangularProgress = Math.pow(downProgress, 0.9)
+        const leftFlare = Math.round(maxBottomFanOutLeft * triangularProgress)
+        const rightFlare = Math.round(maxBottomFanOutRight * triangularProgress)
+
+        desired = {
+          left: anchorSpan.left - leftFlare + horizontalShift,
+          right: anchorSpan.right + rightFlare + horizontalShift,
+        }
+      }
+
+      const rowsToBottom = this.height - row
+      if (rowsToBottom <= trimTailRows) {
+        if (trimSide === 1 || trimSide === 2) {
+          desired.left += 1
+        }
+
+        if (trimSide === 0 || trimSide === 2) {
+          desired.right -= 1
+        }
+      }
+
+      const minimumWidthForRow =
+        row <= underPlatformRow ? guaranteedAnchorWidth : 1
+      let desiredSpan = this.ensureMinWidth(desired, minimumWidthForRow)
+      desiredSpan = this.ensureVerticalContinuity(
+        desiredSpan,
+        previousWritableSpan
+      )
+
+      const writableSpan = this.resolveWritableSpan(row, desiredSpan)
+      if (!writableSpan) {
+        // Prevent floating lower fragments if continuity cannot be maintained.
+        return
+      }
+
+      this.paintSupportRow(supportTiles, row, writableSpan)
+      previousWritableSpan = writableSpan
 
       if (
         SUPPORT_GENERATION_CONSTRAINTS.stopWhenTouchingGround &&
@@ -92,35 +204,82 @@ export class SupportGenerator {
     }
   }
 
-  private resolveWritableSpan(
-    tiles: Tile[][],
-    row: number,
-    desired: Span
-  ): Span | null {
-    const left = clamp(desired.left, 0, this.width - 1)
-    const right = clamp(desired.right, 0, this.width - 1)
+  private buildAnchorSpan(segment: PlatformSegment, width: number): Span {
+    const segmentCenter = Math.round(
+      (segment.startColumn + segment.endColumn) * 0.5
+    )
+    const maxOffset = Math.max(
+      0,
+      Math.floor((segment.endColumn - segment.startColumn + 1 - width) * 0.5)
+    )
+    const centerOffset =
+      maxOffset > 0 ? randomInt(-maxOffset, maxOffset, this.random) : 0
+    return this.buildSpanFromCenter(segmentCenter + centerOffset, width)
+  }
 
-    let resolvedLeft = -1
-    let resolvedRight = -1
-
-    for (let col = left; col <= right; col += 1) {
-      const tile = tiles[row][col]
-      // Negative constraints: supports cannot overwrite platform/ground.
-      if (tile === Tile.PLATFORM || tile === Tile.GROUND) {
-        continue
-      }
-
-      if (resolvedLeft < 0) {
-        resolvedLeft = col
-      }
-      resolvedRight = col
+  private ensureVerticalContinuity(current: Span, previous: Span | null): Span {
+    if (!previous) {
+      return current
     }
 
-    if (resolvedLeft < 0 || resolvedRight < resolvedLeft) {
+    let left = current.left
+    let right = current.right
+
+    // Keep at least one shared column with the previous row so supports remain
+    // visually connected with no vertical gap.
+    if (right < previous.left) {
+      right = previous.left
+    }
+
+    if (left > previous.right) {
+      left = previous.right
+    }
+
+    if (right < left) {
+      right = left
+    }
+
+    return {
+      left: clamp(left, 0, this.width - 1),
+      right: clamp(right, 0, this.width - 1),
+    }
+  }
+
+  private buildSpanFromCenter(center: number, width: number): Span {
+    const safeWidth = Math.max(1, width)
+    let left = center - Math.floor((safeWidth - 1) * 0.5)
+    let right = left + safeWidth - 1
+
+    if (left < 0) {
+      right -= left
+      left = 0
+    }
+
+    if (right >= this.width) {
+      const shiftLeft = right - (this.width - 1)
+      left -= shiftLeft
+      right = this.width - 1
+    }
+
+    left = clamp(left, 0, this.width - 1)
+    right = clamp(right, left, this.width - 1)
+
+    return { left, right }
+  }
+
+  private resolveWritableSpan(row: number, desired: Span): Span | null {
+    if (row < 0 || row >= this.height) {
       return null
     }
 
-    return { left: resolvedLeft, right: resolvedRight }
+    const left = clamp(desired.left, 0, this.width - 1)
+    const right = clamp(desired.right, 0, this.width - 1)
+
+    if (right < left) {
+      return null
+    }
+
+    return { left, right }
   }
 
   private paintSupportRow(tiles: Tile[][], row: number, span: Span): void {
@@ -210,7 +369,7 @@ export class SupportGenerator {
           bottomRow += 1
         }
 
-        segments.push({ startColumn, endColumn, bottomRow })
+        segments.push({ startColumn, endColumn, topRow: row, bottomRow })
         col += 1
       }
     }
