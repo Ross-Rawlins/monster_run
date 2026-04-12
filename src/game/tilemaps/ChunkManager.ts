@@ -4,16 +4,37 @@ import type {
   ChunkLifecycle,
   WorkerResponse,
 } from '../../types/tilemaps'
-import { CHUNK_WIDTH_PX, MAX_ACTIVE_CHUNKS, Tile } from './TileTypes'
+import {
+  CHUNK_WIDTH_PX,
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  MAX_ACTIVE_CHUNKS,
+  Tile,
+} from './TileTypes'
+
+const WORKER_STALL_TIMEOUT_MS = 1500
 
 interface ActiveChunk {
   chunk: Chunk
   tilemap: Phaser.Tilemaps.Tilemap
   layer: Phaser.Tilemaps.TilemapLayer
+  visualTilemap?: Phaser.Tilemaps.Tilemap
+  visualLayer?: Phaser.Tilemaps.TilemapLayer
   collider: Phaser.Physics.Arcade.Collider
   staticGroup?: Phaser.Physics.Arcade.StaticGroup | null
   lifecycle: ChunkLifecycle
   rightEdgePx: number
+}
+
+interface ChunkManagerDiagnostics {
+  generating: boolean
+  pendingRequests: number
+  nextChunkIndex: number
+  activeChunkCount: number
+  queuedChunkCount: number
+  lastGeneratedChunkIndex: number | null
+  lastAttemptCount: number
+  lastWorkerError: string | null
 }
 
 type ChunkReadyCallback = (chunk: Chunk, lifecycle: ChunkLifecycle) => void
@@ -26,6 +47,11 @@ export class ChunkManager {
   private generating = false
   private pendingRequests = 0
   private nextChunkIndex = 0
+  private lastGeneratedChunkIndex: number | null = null
+  private lastAttemptCount = 0
+  private lastWorkerError: string | null = null
+  private pendingWorkerChunkIndex: number | null = null
+  private workerStallTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly onChunkReady: ChunkReadyCallback) {
     this.worker = new Worker(new URL('./wfc.worker.ts', import.meta.url), {
@@ -67,6 +93,8 @@ export class ChunkManager {
       activeChunk.lifecycle.status = 'destroyed'
       activeChunk.collider.destroy()
       activeChunk.staticGroup?.clear(true, true)
+      activeChunk.visualLayer?.destroy()
+      activeChunk.visualTilemap?.destroy()
       activeChunk.layer.destroy()
       activeChunk.tilemap.destroy()
     }
@@ -85,12 +113,31 @@ export class ChunkManager {
       activeChunk.lifecycle.status = 'destroyed'
       activeChunk.collider.destroy()
       activeChunk.staticGroup?.clear(true, true)
+      activeChunk.visualLayer?.destroy()
+      activeChunk.visualTilemap?.destroy()
       activeChunk.layer.destroy()
       activeChunk.tilemap.destroy()
     }
 
     this.activeChunks.length = 0
     this.chunkQueue.length = 0
+  }
+
+  public getActiveChunksSnapshot(): ActiveChunk[] {
+    return [...this.activeChunks]
+  }
+
+  public getDiagnostics(): ChunkManagerDiagnostics {
+    return {
+      generating: this.generating,
+      pendingRequests: this.pendingRequests,
+      nextChunkIndex: this.nextChunkIndex,
+      activeChunkCount: this.activeChunks.length,
+      queuedChunkCount: this.chunkQueue.length,
+      lastGeneratedChunkIndex: this.lastGeneratedChunkIndex,
+      lastAttemptCount: this.lastAttemptCount,
+      lastWorkerError: this.lastWorkerError,
+    }
   }
 
   private pumpQueue(): void {
@@ -100,6 +147,13 @@ export class ChunkManager {
 
     this.generating = true
     this.pendingRequests -= 1
+    this.pendingWorkerChunkIndex = this.nextChunkIndex
+
+    this.clearWorkerStallTimer()
+    this.workerStallTimer = setTimeout(() => {
+      this.handleWorkerStall()
+    }, WORKER_STALL_TIMEOUT_MS)
+
     this.worker.postMessage({
       previousRightColumn: this.lastRightColumn,
       chunkIndex: this.nextChunkIndex,
@@ -107,18 +161,31 @@ export class ChunkManager {
   }
 
   private handleWorkerMessage(event: MessageEvent<WorkerResponse>): void {
-    const { chunk, chunkIndex, error } = event.data
-    this.generating = false
+    const { chunk, chunkIndex, attempts, error } = event.data
 
-    if (!chunk || error) {
-      console.warn(
+    if (chunkIndex < this.nextChunkIndex) {
+      return
+    }
+
+    this.generating = false
+    this.pendingWorkerChunkIndex = null
+    this.clearWorkerStallTimer()
+    this.lastAttemptCount = attempts
+
+    if (!chunk) {
+      this.lastWorkerError =
         error ?? `Chunk ${chunkIndex} generation failed with no error message`
-      )
+      console.warn(this.lastWorkerError)
       this.pendingRequests += 1
       this.pumpQueue()
       return
     }
 
+    this.lastWorkerError = error ?? null
+    if (error) {
+      console.warn(error)
+    }
+    this.lastGeneratedChunkIndex = chunkIndex
     this.lastRightColumn = chunk.rightColumn
     this.nextChunkIndex = chunkIndex + 1
     this.chunkQueue.push(chunk)
@@ -132,6 +199,57 @@ export class ChunkManager {
     this.onChunkReady(chunk, lifecycle)
     this.pumpQueue()
   }
+
+  private handleWorkerStall(): void {
+    if (!this.generating || this.pendingWorkerChunkIndex === null) {
+      return
+    }
+
+    const stalledChunkIndex = this.pendingWorkerChunkIndex
+    this.generating = false
+    this.pendingWorkerChunkIndex = null
+    this.lastWorkerError = `Worker stalled while generating chunk ${stalledChunkIndex}; using fallback terrain.`
+
+    const fallbackChunk = this.buildFallbackChunk()
+    this.lastGeneratedChunkIndex = stalledChunkIndex
+    this.lastAttemptCount = 0
+    this.lastRightColumn = fallbackChunk.rightColumn
+    this.nextChunkIndex = stalledChunkIndex + 1
+    this.chunkQueue.push(fallbackChunk)
+
+    const lifecycle: ChunkLifecycle = {
+      chunkIndex: stalledChunkIndex,
+      rightEdgePx: (stalledChunkIndex + 1) * CHUNK_WIDTH_PX,
+      status: 'active',
+    }
+
+    this.onChunkReady(fallbackChunk, lifecycle)
+    this.pumpQueue()
+  }
+
+  private buildFallbackChunk(): Chunk {
+    const groundHeight = 4
+    const groundStartRow = GRID_HEIGHT - groundHeight
+    const tiles: Tile[][] = Array.from({ length: GRID_HEIGHT }, (_, row) =>
+      Array.from({ length: GRID_WIDTH }, () =>
+        row >= groundStartRow ? Tile.GROUND : Tile.EMPTY
+      )
+    )
+
+    return {
+      tiles,
+      rightColumn: tiles.map((row) => row[GRID_WIDTH - 1]),
+    }
+  }
+
+  private clearWorkerStallTimer(): void {
+    if (!this.workerStallTimer) {
+      return
+    }
+
+    clearTimeout(this.workerStallTimer)
+    this.workerStallTimer = null
+  }
 }
 
-export type { ActiveChunk }
+export type { ActiveChunk, ChunkManagerDiagnostics }

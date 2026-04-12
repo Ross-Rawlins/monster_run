@@ -1,3 +1,10 @@
+export const SCENE_KEYS = Object.freeze({
+  BOOT: 'BOOT_SCENE',
+  CHARACTER_SANDBOX: 'CHARACTER_SANDBOX_SCENE',
+  // Keep compatibility with current runner scene key.
+  INFINITE_RUNNER: 'GAME_SCENE',
+})
+
 export const RUNNER_ASSET_KEYS = Object.freeze({
   BACKGROUND_ATLAS: 'background-atlas',
   BACKGROUND_ATLAS_JSON: 'background-atlas-json',
