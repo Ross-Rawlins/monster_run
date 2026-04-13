@@ -20,10 +20,6 @@ import {
   TILE_RENDER_INDEX,
   TILE_SIZE_PX,
 } from '../tilemaps/TileTypes'
-import {
-  buildSupportRuleSnippet,
-  formatSupportNeighborhood,
-} from '../tilemaps/supports/SupportRules'
 
 const PLAYER_START_X = TILE_SIZE_PX * 6
 const PLAYER_WIDTH = 12
@@ -31,12 +27,14 @@ const PLAYER_HEIGHT = 24
 const PLAYER_RUN_SPEED = 180
 const PLAYER_JUMP_VELOCITY = -360
 const CHUNK_TRIGGER_AHEAD_RATIO = 0.7
+const CHUNK_PREFETCH_AHEAD = 4
+const CHUNK_CLEANUP_BEHIND = 1
 const WORLD_PADDING_CHUNKS = 2
 const TILESET_KEY = 'runner-tileset'
 const RUNTIME_HUD_REFRESH_MS = 100
 const DEBUG_GRID_ROWS = 20
 const DEBUG_GRID_COLUMNS = 60
-const SHOW_PARALLAX_IMAGES = false
+const SHOW_PARALLAX_IMAGES = true
 const SHOW_TILE_IMAGES = true
 const SHOW_SUPPORT_FOREGROUND_CAPS = false
 const CONTINUOUS_SCROLL_TEST_MODE = false
@@ -55,32 +53,19 @@ interface TileStats {
 type RunnerBody = Phaser.Physics.Arcade.Body
 type RunnerSprite = Phaser.GameObjects.Rectangle & { body: RunnerBody }
 
-interface SupportInspectionSelection {
-  chunkIndex: number
-  row: number
-  col: number
-}
-
-interface SupportSpanSelection {
-  left: number
-  right: number
-  width: number
-}
-
 export default class GameScene extends Phaser.Scene {
   private chunkManager!: ChunkManager
   private player!: RunnerSprite
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
+  private keyA!: Phaser.Input.Keyboard.Key
+  private keyD!: Phaser.Input.Keyboard.Key
   private parallaxManager: ParallaxBackgroundManager | null = null
   private debugKey!: Phaser.Input.Keyboard.Key
   private debugOverlayGraphics: Phaser.GameObjects.Graphics | null = null
   private debugCellFillGraphics: Phaser.GameObjects.Graphics | null = null
   private debugTileValueTexts: Phaser.GameObjects.Text[] = []
   private runtimeHudText: Phaser.GameObjects.Text | null = null
-  private supportInspectorText: Phaser.GameObjects.Text | null = null
-  private supportInspectorHighlight: Phaser.GameObjects.Graphics | null = null
-  private selectedSupportTile: SupportInspectionSelection | null = null
-  private debugEnabled = true
+  private debugEnabled = false
   private runtimeTileSizePx = TILE_SIZE_PX
   private runtimeTileScale = 1
   private runtimeChunkWidthPx = GRID_WIDTH * TILE_SIZE_PX
@@ -129,7 +114,16 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.cursors = keyboard.createCursorKeys()
-    this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    this.keyA = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
+    this.keyD = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    keyboard.addCapture([
+      Phaser.Input.Keyboard.KeyCodes.LEFT,
+      Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      Phaser.Input.Keyboard.KeyCodes.A,
+      Phaser.Input.Keyboard.KeyCodes.D,
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+    ])
+    this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G)
 
     // Optional visual layer while tuning randomization rules.
     if (SHOW_PARALLAX_IMAGES) {
@@ -171,15 +165,10 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD (fixed to camera)
     this.add
-      .text(
-        12,
-        12,
-        'SPACE = Jump  |  D = Grid overlay  |  Click support tile = inspect',
-        {
-          fontSize: '12px',
-          color: '#ffffff',
-        }
-      )
+      .text(12, 12, 'Arrows or A/D = Scroll  |  SPACE = Jump  |  G = Grid', {
+        fontSize: '12px',
+        color: '#ffffff',
+      })
       .setAlpha(0.6)
       .setScrollFactor(0)
       .setDepth(200)
@@ -195,22 +184,6 @@ export default class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(201)
 
-    this.supportInspectorText = this.add
-      .text(this.scale.width - 12, 12, 'Click a support tile to inspect it.', {
-        fontSize: '11px',
-        color: '#f6f3d8',
-        backgroundColor: '#352a1e',
-        padding: { x: 6, y: 4 },
-        align: 'left',
-        wordWrap: { width: 420, useAdvancedWrap: true },
-      })
-      .setOrigin(1, 0)
-      .setAlpha(0.95)
-      .setScrollFactor(0)
-      .setDepth(202)
-
-    this.input.on('pointerdown', this.handleInspectorPointerDown, this)
-
     this.chunkManager = new ChunkManager((chunk, lifecycle) => {
       this.attachChunk(chunk, lifecycle)
     })
@@ -222,186 +195,6 @@ export default class GameScene extends Phaser.Scene {
       this.clearDebugOverlay()
       this.runtimeHudText?.destroy()
       this.runtimeHudText = null
-      this.supportInspectorText?.destroy()
-      this.supportInspectorText = null
-      this.supportInspectorHighlight?.destroy()
-      this.supportInspectorHighlight = null
-      this.input.off('pointerdown', this.handleInspectorPointerDown, this)
-    })
-  }
-
-  private handleInspectorPointerDown(pointer: Phaser.Input.Pointer): void {
-    const selection = this.resolveTileSelection(pointer.worldX, pointer.worldY)
-
-    if (!selection) {
-      this.clearSupportInspection('Click a support tile to inspect it.')
-      return
-    }
-
-    const activeChunk = this.getActiveChunkByIndex(selection.chunkIndex)
-
-    if (!activeChunk) {
-      return
-    }
-
-    const tile = activeChunk.chunk.tiles[selection.row][selection.col]
-    const supportTile =
-      activeChunk.chunk.supportTiles[selection.row][selection.col]
-    if (supportTile !== Tile.SUPPORT) {
-      const displayValue = tile === Tile.EMPTY ? -1 : tile
-      this.clearSupportInspection(
-        `Selected tile ${displayValue} at chunk=${selection.chunkIndex} row=${selection.row} col=${selection.col}.\nClick a support tile to generate a rule snippet.`
-      )
-      return
-    }
-
-    this.selectedSupportTile = selection
-
-    const resolvedFrame = getRenderFrameForTileAt(
-      activeChunk.chunk.supportTiles,
-      selection.row,
-      selection.col
-    )
-    const oneBasedFrameNumber =
-      resolvedFrame >= 0 ? resolvedFrame + 1 : undefined
-    const snippet = buildSupportRuleSnippet(
-      activeChunk.chunk.supportTiles,
-      selection.row,
-      selection.col,
-      resolvedFrame
-    )
-    const supportSpan = this.getSupportSpanSelection(
-      activeChunk.chunk,
-      selection.row,
-      selection.col
-    )
-
-    this.copySnippetToClipboard(snippet)
-    this.updateSupportInspectorText(
-      [
-        `Support tile at chunk=${selection.chunkIndex} row=${selection.row} col=${selection.col}`,
-        `copied=rule snippet  frame=${oneBasedFrameNumber ?? 'none'} (${resolvedFrame})`,
-        `spanWidth=${supportSpan.width}  span=[${supportSpan.left}..${supportSpan.right}]  minRequired=4`,
-        formatSupportNeighborhood(
-          activeChunk.chunk.supportTiles,
-          selection.row,
-          selection.col
-        ),
-        '',
-        snippet,
-      ].join('\n')
-    )
-    this.redrawInspectorHighlight()
-  }
-
-  private clearSupportInspection(message: string): void {
-    this.selectedSupportTile = null
-    this.updateSupportInspectorText(message)
-    this.redrawInspectorHighlight()
-  }
-
-  private getActiveChunkByIndex(chunkIndex: number): ActiveChunk | undefined {
-    return this.chunkManager
-      .getActiveChunksSnapshot()
-      .find((candidate) => candidate.lifecycle.chunkIndex === chunkIndex)
-  }
-
-  private getSupportSpanSelection(
-    chunk: Chunk,
-    row: number,
-    col: number
-  ): SupportSpanSelection {
-    let left = col
-    let right = col
-
-    while (
-      left - 1 >= 0 &&
-      chunk.supportTiles[row][left - 1] === Tile.SUPPORT
-    ) {
-      left -= 1
-    }
-
-    while (
-      right + 1 < GRID_WIDTH &&
-      chunk.supportTiles[row][right + 1] === Tile.SUPPORT
-    ) {
-      right += 1
-    }
-
-    return {
-      left,
-      right,
-      width: right - left + 1,
-    }
-  }
-
-  private resolveTileSelection(
-    worldX: number,
-    worldY: number
-  ): SupportInspectionSelection | null {
-    if (
-      worldY < this.chunkOffsetY ||
-      worldY >= this.chunkOffsetY + this.runtimeChunkHeightPx
-    ) {
-      return null
-    }
-
-    const chunkIndex = Math.floor(worldX / this.runtimeChunkWidthPx)
-    const row = Math.floor(
-      (worldY - this.chunkOffsetY) / this.runtimeTileSizePx
-    )
-    const col = Math.floor(
-      (worldX - chunkIndex * this.runtimeChunkWidthPx) / this.runtimeTileSizePx
-    )
-
-    if (
-      chunkIndex < 0 ||
-      row < 0 ||
-      row >= GRID_HEIGHT ||
-      col < 0 ||
-      col >= GRID_WIDTH
-    ) {
-      return null
-    }
-
-    return { chunkIndex, row, col }
-  }
-
-  private redrawInspectorHighlight(): void {
-    this.supportInspectorHighlight?.destroy()
-    this.supportInspectorHighlight = null
-
-    if (!this.selectedSupportTile) {
-      return
-    }
-
-    const { chunkIndex, row, col } = this.selectedSupportTile
-    const x =
-      chunkIndex * this.runtimeChunkWidthPx + col * this.runtimeTileSizePx
-    const y = this.chunkOffsetY + row * this.runtimeTileSizePx
-
-    this.supportInspectorHighlight = this.add.graphics().setDepth(120)
-    this.supportInspectorHighlight.lineStyle(3, 0xffe066, 1)
-    this.supportInspectorHighlight.strokeRect(
-      x + 1,
-      y + 1,
-      this.runtimeTileSizePx - 2,
-      this.runtimeTileSizePx - 2
-    )
-  }
-
-  private updateSupportInspectorText(message: string): void {
-    this.supportInspectorText?.setText(message)
-  }
-
-  private copySnippetToClipboard(snippet: string): void {
-    const clipboard = globalThis.navigator?.clipboard
-    if (!clipboard) {
-      return
-    }
-
-    void clipboard.writeText(snippet).catch(() => {
-      // Ignore clipboard permission failures and keep the snippet visible in the HUD.
     })
   }
 
@@ -436,8 +229,8 @@ export default class GameScene extends Phaser.Scene {
 
   private updatePlayerMovement(): void {
     const body = this.player.body
-    const wantsLeft = this.cursors.left?.isDown ?? false
-    const wantsRight = this.cursors.right?.isDown ?? false
+    const wantsLeft = (this.cursors.left?.isDown ?? false) || this.keyA.isDown
+    const wantsRight = (this.cursors.right?.isDown ?? false) || this.keyD.isDown
 
     if (MANUAL_CAMERA_SCROLL_MODE) {
       body.setVelocityX(0)
@@ -495,7 +288,11 @@ export default class GameScene extends Phaser.Scene {
   private updateChunkStreaming(): void {
     const cameraScrollX = this.cameras.main.scrollX
     this.parallaxManager?.update(cameraScrollX)
-    this.chunkManager.destroyStaleChunks(cameraScrollX)
+    const cleanupBoundaryX = Math.max(
+      0,
+      cameraScrollX - this.runtimeChunkWidthPx * CHUNK_CLEANUP_BEHIND
+    )
+    this.chunkManager.destroyStaleChunks(cleanupBoundaryX)
 
     const triggerX = Math.max(
       this.player.x,
@@ -503,12 +300,53 @@ export default class GameScene extends Phaser.Scene {
     )
 
     if (triggerX <= this.nextChunkTriggerX) {
+      this.proactivelyRequestChunks(cameraScrollX)
       return
     }
 
     this.chunkManager.triggerNextChunk()
     this.nextChunkTriggerX += this.runtimeChunkWidthPx
     this.preExtendWorldBounds(this.nextChunkTriggerX + this.runtimeChunkWidthPx)
+    this.proactivelyRequestChunks(cameraScrollX)
+  }
+
+  private proactivelyRequestChunks(cameraScrollX: number): void {
+    const currentChunkIndex = Math.floor(
+      cameraScrollX / this.runtimeChunkWidthPx
+    )
+    const desiredLastChunkIndex = currentChunkIndex + CHUNK_PREFETCH_AHEAD
+
+    const diagnostics = this.chunkManager.getDiagnostics()
+    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
+    let lastActiveChunk: ActiveChunk | undefined
+    for (const activeChunk of activeChunks) {
+      lastActiveChunk = activeChunk
+    }
+    const lastActiveChunkIndex = lastActiveChunk?.lifecycle.chunkIndex ?? -1
+
+    const scheduledThroughChunkIndex =
+      diagnostics.generating || diagnostics.pendingRequests > 0
+        ? diagnostics.nextChunkIndex + diagnostics.pendingRequests
+        : diagnostics.nextChunkIndex - 1
+
+    const coveredThroughChunkIndex = Math.max(
+      lastActiveChunkIndex,
+      scheduledThroughChunkIndex
+    )
+    const missingChunkCount = Math.max(
+      0,
+      desiredLastChunkIndex - coveredThroughChunkIndex
+    )
+
+    for (let i = 0; i < missingChunkCount; i += 1) {
+      this.chunkManager.triggerNextChunk()
+    }
+
+    if (missingChunkCount > 0) {
+      this.preExtendWorldBounds(
+        (desiredLastChunkIndex + 1) * this.runtimeChunkWidthPx
+      )
+    }
   }
 
   private handleDebugToggle(): void {
@@ -540,15 +378,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private attachChunk(chunk: Chunk, lifecycle: ChunkLifecycle): void {
+    const chunkGroundStyleByColumn = chunk.groundTopStyleByColumn
     const collisionTilemapData = chunk.tiles.map((row, rowIndex) =>
       row.map((_, colIndex) =>
-        getRenderFrameForTileAt(chunk.tiles, rowIndex, colIndex)
+        getRenderFrameForTileAt(chunk.tiles, rowIndex, colIndex, {
+          groundStyleByColumn: chunkGroundStyleByColumn,
+        })
       )
     )
 
     const supportVisualTilemapData = chunk.supportTiles.map((row, rowIndex) =>
       row.map((tile, colIndex) =>
-        tile === Tile.SUPPORT
+        tile === Tile.CAVE
           ? getRenderFrameForTileAt(chunk.supportTiles, rowIndex, colIndex)
           : TILE_RENDER_INDEX[Tile.EMPTY]
       )
@@ -689,6 +530,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.chunkManager.registerActiveChunk(activeChunk)
+    this.refreshSeamFrames(lifecycle.chunkIndex)
     this.updateWorldBounds(chunkRightEdgePx)
     if (this.debugEnabled) {
       this.redrawDebugOverlay()
@@ -711,7 +553,7 @@ export default class GameScene extends Phaser.Scene {
     col: number,
     supportTile: Tile
   ): boolean {
-    if (supportTile !== Tile.SUPPORT) {
+    if (supportTile !== Tile.CAVE) {
       return false
     }
 
@@ -725,6 +567,91 @@ export default class GameScene extends Phaser.Scene {
     }
 
     return chunk.tiles[row - 1][col] === Tile.EMPTY
+  }
+
+  private refreshSeamFrames(chunkIndex: number): void {
+    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
+    let previousChunk: ActiveChunk | null = null
+    let currentChunk: ActiveChunk | null = null
+
+    for (const activeChunk of activeChunks) {
+      if (activeChunk.lifecycle.chunkIndex === chunkIndex - 1) {
+        previousChunk = activeChunk
+      }
+
+      if (activeChunk.lifecycle.chunkIndex === chunkIndex) {
+        currentChunk = activeChunk
+      }
+    }
+
+    if (!currentChunk) {
+      return
+    }
+
+    if (previousChunk) {
+      const previousRightStyle =
+        previousChunk.chunk.groundTopStyleByColumn?.[GRID_WIDTH - 1] ?? null
+      const currentLeftStyle =
+        currentChunk.chunk.groundTopStyleByColumn?.[0] ?? null
+
+      this.refreshChunkEdgeFrames(
+        previousChunk,
+        GRID_WIDTH - 1,
+        null,
+        currentChunk.chunk.tiles.map((row) => row[0]),
+        null,
+        currentLeftStyle
+      )
+
+      this.refreshChunkEdgeFrames(
+        currentChunk,
+        0,
+        previousChunk.chunk.tiles.map((row) => row[GRID_WIDTH - 1]),
+        null,
+        previousRightStyle,
+        null
+      )
+      return
+    }
+
+    this.refreshChunkEdgeFrames(currentChunk, 0, null, null)
+  }
+
+  private refreshChunkEdgeFrames(
+    activeChunk: ActiveChunk,
+    column: number,
+    leftNeighborColumn: Tile[] | null,
+    rightNeighborColumn: Tile[] | null,
+    leftNeighborGroundStyle: number | null = null,
+    rightNeighborGroundStyle: number | null = null
+  ): void {
+    const paddedTiles = activeChunk.chunk.tiles.map((row, rowIndex) => [
+      leftNeighborColumn?.[rowIndex] ?? Tile.EMPTY,
+      ...row,
+      rightNeighborColumn?.[rowIndex] ?? Tile.EMPTY,
+    ])
+
+    const chunkGroundStyleByColumn = activeChunk.chunk.groundTopStyleByColumn
+    const paddedGroundStyleByColumn = [
+      leftNeighborGroundStyle ?? -1,
+      ...(chunkGroundStyleByColumn ??
+        Array.from({ length: GRID_WIDTH }, () => -1)),
+      rightNeighborGroundStyle ?? -1,
+    ]
+
+    const paddedColumn = column + 1
+    const styleMinCol = 1
+    const styleMaxCol = paddedTiles[0].length - 2
+    for (let row = 0; row < GRID_HEIGHT; row += 1) {
+      const frame = getRenderFrameForTileAt(paddedTiles, row, paddedColumn, {
+        groundStyleBounds: {
+          minCol: styleMinCol,
+          maxCol: styleMaxCol,
+        },
+        groundStyleByColumn: paddedGroundStyleByColumn,
+      })
+      activeChunk.layer.putTileAt(frame, column, row, true)
+    }
   }
 
   private placePlayerSpawn(chunk: Chunk): void {
@@ -915,10 +842,10 @@ export default class GameScene extends Phaser.Scene {
           col
         )
         const isUnresolvedSupport =
-          supportTile === Tile.SUPPORT &&
+          supportTile === Tile.CAVE &&
           supportResolved === TILE_RENDER_INDEX[Tile.EMPTY]
 
-        const effectiveTile = isUnresolvedSupport ? Tile.SUPPORT : tile
+        const effectiveTile = isUnresolvedSupport ? Tile.CAVE : tile
         const effectiveUnresolved = isUnresolvedTile || isUnresolvedSupport
         const labelText = this.getDebugLabelText(
           effectiveTile,
@@ -995,7 +922,7 @@ export default class GameScene extends Phaser.Scene {
       return
     }
 
-    if (tile === Tile.SUPPORT) {
+    if (tile === Tile.CAVE) {
       this.fillDebugCell(
         DEBUG_GRID_STYLE.supportCellColor,
         DEBUG_GRID_STYLE.supportCellAlpha,
@@ -1097,7 +1024,7 @@ export default class GameScene extends Phaser.Scene {
 
       for (const row of activeChunk.chunk.supportTiles) {
         for (const tile of row) {
-          if (tile === Tile.SUPPORT) {
+          if (tile === Tile.CAVE) {
             stats.support += 1
           }
         }

@@ -3,7 +3,7 @@
 import type { WorkerMessage, WorkerResponse } from '../../types/tilemaps'
 import { WFCGenerator } from './WFCGenerator'
 
-const workerScope = self as DedicatedWorkerGlobalScope
+const workerScope = globalThis as unknown as DedicatedWorkerGlobalScope
 const RUN_SEED = createRunSeed()
 
 function createRunSeed(): number {
@@ -26,7 +26,12 @@ function buildAttemptSeed(chunkIndex: number, attempt: number): number {
 }
 
 workerScope.onmessage = (event: MessageEvent<WorkerMessage>) => {
-  const { previousRightColumn, chunkIndex } = event.data
+  const {
+    previousRightColumn,
+    previousLayerRightColumns,
+    previousGroundOpenSectionStyleIndex,
+    chunkIndex,
+  } = event.data
 
   let attempts = 0
   let chunk: WorkerResponse['chunk']
@@ -41,6 +46,16 @@ workerScope.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
       if (previousRightColumn) {
         generator.seedLeftColumn(previousRightColumn)
+      }
+
+      if (previousLayerRightColumns) {
+        generator.seedLayerLeftColumns(previousLayerRightColumns)
+      }
+
+      if (previousGroundOpenSectionStyleIndex !== undefined) {
+        generator.seedGroundOpenSectionStyleIndex(
+          previousGroundOpenSectionStyleIndex
+        )
       }
 
       chunk = generator.generate()
@@ -59,5 +74,3 @@ workerScope.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
   workerScope.postMessage(response)
 }
-
-export {}

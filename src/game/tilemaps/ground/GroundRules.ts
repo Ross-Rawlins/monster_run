@@ -1,4 +1,30 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// NORMALIZATION CHANGES IN THIS FILE:
+// ═══════════════════════════════════════════════════════════════════════════
+// RULE 1 — Frame Index Helper:
+//   • All inline arithmetic (n - 1) replaced with toFrameIndex(n)
+//   • Lines affected: GROUND_BODY_LEFT_FRAME, DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME,
+//     GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME, and all style objects
+//
+// RULE 2 — Normalized Style Property Names:
+//   • GroundTopStyle interface:
+//     - isolatedSingleFrame → singleFrame
+//     - topLeftCornerFrame → leftFrame
+//     - topMiddleFrames → middleFrames (kept as is, already correct)
+//     - topRightCornerFrame → rightFrame
+//   • All references in GROUND_TOP_STYLES and frame resolution functions updated
+//
+// RULE 3 — Autotile Table Comments:
+//   • Standardized comment block at top of GROUND_AUTOTILE
+//   • Format: mask: [toFrameIndex(n)],  // DIRECTION_LABEL  atlas tile n
+//
+// RULE 4 — Constraint Property Names:
+//   • Constraint properties remain as-is (external config dependency)
+//   • References within GroundRulesImpl.getCollisionRows() are unchanged
+
 import { type AutotileTable, collectAutotileFrames } from '../rules/Autotiler'
+import { toFrameIndex } from '../utils/frameIndex'
+import type { ILayerRules } from '../contracts/ILayerRules'
 
 export interface GroundGenerationConstraints {
   tileId: number
@@ -28,42 +54,42 @@ export const GROUND_GENERATION_CONSTRAINTS: GroundGenerationConstraints = {
 
 const TILE_GROUND = 6
 const TILE_EMPTY = 0
-const TILE_SUPPORT = 7
+const TILE_CAVE = 7
 const TOP_STYLE_DIRT_INDEX = 1
-const GROUND_BODY_LEFT_FRAME = 132 - 1
-const GROUND_BODY_MIDDLE_FRAME = 133 - 1
-const GROUND_BODY_RIGHT_FRAME = 134 - 1
-const DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME = 148 - 1
-const DIRT_INTERNAL_TOP_RIGHT_CORNER_FRAME = 149 - 1
-const GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME = 49 - 1
-const GRASS_INTERNAL_TOP_RIGHT_CORNER_FRAME = 50 - 1
+const GROUND_BODY_LEFT_FRAME = toFrameIndex(132)
+const GROUND_BODY_MIDDLE_FRAME = toFrameIndex(133)
+const GROUND_BODY_RIGHT_FRAME = toFrameIndex(134)
+const DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME = toFrameIndex(148)
+const DIRT_INTERNAL_TOP_RIGHT_CORNER_FRAME = toFrameIndex(149)
+const GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME = toFrameIndex(49)
+const GRASS_INTERNAL_TOP_RIGHT_CORNER_FRAME = toFrameIndex(50)
 
 interface GroundTopStyle {
-  isolatedSingleFrame: number
-  topLeftCornerFrame: number
-  topMiddleFrames: number[]
-  topRightCornerFrame: number
+  singleFrame: number
+  leftFrame: number
+  middleFrames: number[]
+  rightFrame: number
 }
 
 const GROUND_TOP_STYLES: GroundTopStyle[] = [
   {
-    isolatedSingleFrame: 5 - 1,
-    topLeftCornerFrame: 41 - 1,
-    topMiddleFrames: [42 - 1],
-    topRightCornerFrame: 43 - 1,
+    singleFrame: toFrameIndex(5),
+    leftFrame: toFrameIndex(41),
+    middleFrames: [toFrameIndex(42)],
+    rightFrame: toFrameIndex(43),
   },
   {
-    isolatedSingleFrame: 70 - 1,
-    topLeftCornerFrame: 127 - 1,
-    topMiddleFrames: [128 - 1],
-    topRightCornerFrame: 129 - 1,
+    singleFrame: toFrameIndex(70),
+    leftFrame: toFrameIndex(127),
+    middleFrames: [toFrameIndex(128)],
+    rightFrame: toFrameIndex(129),
   },
 ]
 
 // ─── Bitmask Autotile Table ──────────────────────────────────────────
-// 8-directional same-type sampling with corner stripping.
-// Bit layout: NW=1 N=2 NE=4  W=8 E=16  SW=32 S=64 SE=128
-// Empty table — populate entries from atlas tile images.
+// Bitmask layout: NW=1  N=2  NE=4  W=8  E=16  SW=32  S=64  SE=128
+// Diagonal bits are only set when both adjacent cardinal bits are set.
+// mask → [frame variants]  (use toFrameIndex for all entries)
 
 export const GROUND_AUTOTILE: AutotileTable = {
   // mask → [variant frame indices]
@@ -95,7 +121,7 @@ function getTileAt(tiles: number[][], row: number, col: number): number {
 }
 
 function isOpenInternalCornerDiagonal(tile: number): boolean {
-  return tile === -1 || tile === TILE_EMPTY || tile === TILE_SUPPORT
+  return tile === -1 || tile === TILE_EMPTY || tile === TILE_CAVE
 }
 
 function classifyGroundEdge(
@@ -158,12 +184,42 @@ function columnHasGround(tiles: number[][], col: number): boolean {
   return false
 }
 
-function findGroundSectionLeft(tiles: number[][], col: number): number {
+function findGroundSectionLeftWithinBounds(
+  tiles: number[][],
+  col: number,
+  minCol: number
+): number {
   let left = col
-  while (columnHasGround(tiles, left - 1)) {
+  while (left - 1 >= minCol && columnHasGround(tiles, left - 1)) {
     left -= 1
   }
   return left
+}
+
+function findGroundSectionRightWithinBounds(
+  tiles: number[][],
+  col: number,
+  maxCol: number
+): number {
+  let right = col
+  while (right + 1 <= maxCol && columnHasGround(tiles, right + 1)) {
+    right += 1
+  }
+  return right
+}
+
+function findColumnTopSurfaceRow(tiles: number[][], col: number): number {
+  if (col < 0 || col >= tiles[0].length) {
+    return -1
+  }
+
+  for (let row = 0; row < tiles.length; row += 1) {
+    if (isGroundAt(tiles, row, col)) {
+      return row
+    }
+  }
+
+  return -1
 }
 
 function getGroundColumnHeight(
@@ -197,19 +253,48 @@ function selectVariantFrame(
 function selectGroundTopStyleIndex(
   tiles: number[][],
   _row: number,
-  col: number
+  col: number,
+  styleMinCol: number,
+  styleMaxCol: number,
+  forcedStyleByColumn?: number[]
 ): number {
-  const sectionLeftCol = findGroundSectionLeft(tiles, col)
+  const forcedStyle = forcedStyleByColumn?.[col]
+  if (forcedStyle !== undefined && forcedStyle >= 0) {
+    return forcedStyle
+  }
+
+  const clampedCol = Math.max(styleMinCol, Math.min(col, styleMaxCol))
+  const sectionLeftCol = findGroundSectionLeftWithinBounds(
+    tiles,
+    clampedCol,
+    styleMinCol
+  )
+  const sectionRightCol = findGroundSectionRightWithinBounds(
+    tiles,
+    clampedCol,
+    styleMaxCol
+  )
+  const anchorSurfaceRow = findColumnTopSurfaceRow(tiles, sectionLeftCol)
+  const normalizedSectionLeft = sectionLeftCol - styleMinCol
+  const normalizedSectionRight = sectionRightCol - styleMinCol
 
   // One style decision per full horizontal ground section (between gaps).
-  const hash = sectionLeftCol * 68917
+  // Hashing section-level anchors in a normalized domain prevents per-row
+  // swaps and keeps seam refreshes consistent with chunk-local rendering.
+  const hash =
+    (normalizedSectionLeft * 73856093) ^
+    (normalizedSectionRight * 19349663) ^
+    (anchorSurfaceRow * 83492791)
   return Math.abs(hash) % GROUND_TOP_STYLES.length
 }
 
 function resolveGroundTopLayerFrame(
   tiles: number[][],
   row: number,
-  col: number
+  col: number,
+  styleMinCol: number,
+  styleMaxCol: number,
+  forcedStyleByColumn?: number[]
 ): number | null {
   if (!isTopSurfaceGroundTile(tiles, row, col)) {
     return null
@@ -226,28 +311,35 @@ function resolveGroundTopLayerFrame(
   const hasBottomLeft = isGroundAt(tiles, row + 1, col - 1)
   const hasBottomRight = isGroundAt(tiles, row + 1, col + 1)
 
-  const styleIndex = selectGroundTopStyleIndex(tiles, row, col)
+  const styleIndex = selectGroundTopStyleIndex(
+    tiles,
+    row,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   const style = GROUND_TOP_STYLES[styleIndex]
 
   // Any top tile with no horizontal neighbors is a single-width cap.
   // This includes floating singles and stacked 1-tile-wide columns.
   if (!hasLeft && !hasRight) {
-    return style.isolatedSingleFrame
+    return style.singleFrame
   }
 
   // Top-left outer corner for current selected top style.
   if ((!hasLeft && hasRight) || (!hasLeft && hasBottom && hasBottomRight)) {
-    return style.topLeftCornerFrame
+    return style.leftFrame
   }
 
   // Top-right outer corner for current selected top style.
   if ((hasLeft && !hasRight) || (!hasRight && hasBottom && hasBottomLeft)) {
-    return style.topRightCornerFrame
+    return style.rightFrame
   }
 
   // Top middle filler variants for current selected top style.
   if (hasLeft && hasRight) {
-    return selectVariantFrame(style.topMiddleFrames, row, col, styleIndex + 1)
+    return selectVariantFrame(style.middleFrames, row, col, styleIndex + 1)
   }
 
   return null
@@ -256,7 +348,10 @@ function resolveGroundTopLayerFrame(
 function resolveStepJoinCornerFrame(
   tiles: number[][],
   row: number,
-  col: number
+  col: number,
+  styleMinCol: number,
+  styleMaxCol: number,
+  forcedStyleByColumn?: number[]
 ): number | null {
   if (!isGroundAt(tiles, row, col)) {
     return null
@@ -278,7 +373,14 @@ function resolveStepJoinCornerFrame(
   const canUseRightInternalCorner =
     isOpenInternalCornerDiagonal(topLeftDiagonal)
 
-  const styleIndex = selectGroundTopStyleIndex(tiles, row - 1, col)
+  const styleIndex = selectGroundTopStyleIndex(
+    tiles,
+    row - 1,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   const isDirtStyle = styleIndex === TOP_STYLE_DIRT_INDEX
 
   const leftInternalCornerFrame = isDirtStyle
@@ -377,7 +479,10 @@ function resolveDeepStructuredRowFrame(
 function resolveFarRightPerRowFrame(
   tiles: number[][],
   row: number,
-  col: number
+  col: number,
+  styleMinCol: number,
+  styleMaxCol: number,
+  forcedStyleByColumn?: number[]
 ): number | null {
   if (!isGroundAt(tiles, row, col)) {
     return null
@@ -389,7 +494,14 @@ function resolveFarRightPerRowFrame(
   }
 
   const surfaceRow = findColumnSurfaceRow(tiles, row, col)
-  const styleIndex = selectGroundTopStyleIndex(tiles, surfaceRow, col)
+  const styleIndex = selectGroundTopStyleIndex(
+    tiles,
+    surfaceRow,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   const style = GROUND_TOP_STYLES[styleIndex]
 
   const hasLeft = isGroundAt(tiles, row, col - 1)
@@ -397,11 +509,11 @@ function resolveFarRightPerRowFrame(
 
   // Preserve single-width top behavior for stacked/floating 1-wide columns.
   if (isTop && !hasLeft) {
-    return style.isolatedSingleFrame
+    return style.singleFrame
   }
 
   if (isTop) {
-    return style.topRightCornerFrame
+    return style.rightFrame
   }
 
   return GROUND_BODY_RIGHT_FRAME
@@ -413,14 +525,37 @@ export function resolveGroundTileFrame(
   row: number,
   col: number,
   _fallbackFrame: number,
-  tiles: number[][]
+  tiles: number[][],
+  styleOptions?: {
+    minCol?: number
+    maxCol?: number
+    styleByColumn?: number[]
+  }
 ): number {
-  const topLayerFrame = resolveGroundTopLayerFrame(tiles, row, col)
+  const styleMinCol = styleOptions?.minCol ?? 0
+  const styleMaxCol = styleOptions?.maxCol ?? tiles[0].length - 1
+  const forcedStyleByColumn = styleOptions?.styleByColumn
+
+  const topLayerFrame = resolveGroundTopLayerFrame(
+    tiles,
+    row,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   if (topLayerFrame !== null) {
     return topLayerFrame
   }
 
-  const stepJoinCornerFrame = resolveStepJoinCornerFrame(tiles, row, col)
+  const stepJoinCornerFrame = resolveStepJoinCornerFrame(
+    tiles,
+    row,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   if (stepJoinCornerFrame !== null) {
     return stepJoinCornerFrame
   }
@@ -435,7 +570,14 @@ export function resolveGroundTileFrame(
     return deepStructuredRowFrame
   }
 
-  const forcedFarRightFrame = resolveFarRightPerRowFrame(tiles, row, col)
+  const forcedFarRightFrame = resolveFarRightPerRowFrame(
+    tiles,
+    row,
+    col,
+    styleMinCol,
+    styleMaxCol,
+    forcedStyleByColumn
+  )
   if (forcedFarRightFrame !== null) {
     return forcedFarRightFrame
   }
@@ -453,10 +595,10 @@ export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
   if (collisionOnly) return []
 
   const topStyleFrames = GROUND_TOP_STYLES.flatMap((style) => [
-    style.isolatedSingleFrame,
-    style.topLeftCornerFrame,
-    ...style.topMiddleFrames,
-    style.topRightCornerFrame,
+    style.singleFrame,
+    style.leftFrame,
+    ...style.middleFrames,
+    style.rightFrame,
   ])
 
   return Array.from(
@@ -473,3 +615,41 @@ export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
     ])
   )
 }
+
+// ─── ILayerRules Implementation ──────────────────────────────────────
+
+/**
+ * Ground layer rules: constraints, frame resolution, and collision detection.
+ * Implements ILayerRules for the unified tilemap generation system.
+ */
+export class GroundRulesImpl implements ILayerRules<GroundGenerationConstraints> {
+  readonly constraints = GROUND_GENERATION_CONSTRAINTS
+
+  resolveFrame(
+    row: number,
+    col: number,
+    _fallbackFrame: number,
+    tiles: ReadonlyArray<ReadonlyArray<number>>
+  ): number {
+    return resolveGroundTileFrame(row, col, _fallbackFrame, tiles as number[][])
+  }
+
+  getFrameIndices(collisionOnly?: boolean): number[] {
+    return getGroundRuleFrameIndices(collisionOnly)
+  }
+
+  getCollisionRows(tiles: ReadonlyArray<ReadonlyArray<number>>): Set<number> {
+    const collisionRows = new Set<number>()
+    for (let row = 0; row < tiles.length; row += 1) {
+      for (let col = 0; col < tiles[row].length; col += 1) {
+        if (isTopSurfaceGroundTile(tiles as number[][], row, col)) {
+          collisionRows.add(row)
+          break // One collision row per column is enough
+        }
+      }
+    }
+    return collisionRows
+  }
+}
+
+export const groundRules = new GroundRulesImpl()

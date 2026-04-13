@@ -2,15 +2,10 @@ import * as Phaser from 'phaser'
 import type {
   Chunk,
   ChunkLifecycle,
+  LayerBoundaryColumns,
   WorkerResponse,
 } from '../../types/tilemaps'
-import {
-  CHUNK_WIDTH_PX,
-  GRID_HEIGHT,
-  GRID_WIDTH,
-  MAX_ACTIVE_CHUNKS,
-  Tile,
-} from './TileTypes'
+import { CHUNK_WIDTH_PX, MAX_ACTIVE_CHUNKS, Tile } from './TileTypes'
 
 const WORKER_STALL_TIMEOUT_MS = 1500
 
@@ -42,10 +37,11 @@ interface ChunkManagerDiagnostics {
 type ChunkReadyCallback = (chunk: Chunk, lifecycle: ChunkLifecycle) => void
 
 export class ChunkManager {
-  private readonly worker: Worker
-  private readonly chunkQueue: Chunk[] = []
+  private worker: Worker
   private readonly activeChunks: ActiveChunk[] = []
   private lastRightColumn: Tile[] | null = null
+  private lastLayerRightColumns: LayerBoundaryColumns | null = null
+  private lastGroundOpenSectionStyleIndex: number | null = null
   private generating = false
   private pendingRequests = 0
   private nextChunkIndex = 0
@@ -56,12 +52,9 @@ export class ChunkManager {
   private workerStallTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly onChunkReady: ChunkReadyCallback) {
-    this.worker = new Worker(new URL('./wfc.worker.ts', import.meta.url), {
-      type: 'module',
-    })
-    this.worker.onmessage = this.handleWorkerMessage.bind(this)
+    this.worker = this.createWorker()
 
-    this.pendingRequests = 2
+    this.pendingRequests = 5
     this.pumpQueue()
   }
 
@@ -111,6 +104,7 @@ export class ChunkManager {
   }
 
   public destroy(): void {
+    this.clearWorkerStallTimer()
     this.worker.terminate()
 
     for (const activeChunk of this.activeChunks) {
@@ -126,7 +120,6 @@ export class ChunkManager {
     }
 
     this.activeChunks.length = 0
-    this.chunkQueue.length = 0
   }
 
   public getActiveChunksSnapshot(): ActiveChunk[] {
@@ -139,7 +132,7 @@ export class ChunkManager {
       pendingRequests: this.pendingRequests,
       nextChunkIndex: this.nextChunkIndex,
       activeChunkCount: this.activeChunks.length,
-      queuedChunkCount: this.chunkQueue.length,
+      queuedChunkCount: 0,
       lastGeneratedChunkIndex: this.lastGeneratedChunkIndex,
       lastAttemptCount: this.lastAttemptCount,
       lastWorkerError: this.lastWorkerError,
@@ -162,8 +155,18 @@ export class ChunkManager {
 
     this.worker.postMessage({
       previousRightColumn: this.lastRightColumn,
+      previousLayerRightColumns: this.lastLayerRightColumns,
+      previousGroundOpenSectionStyleIndex: this.lastGroundOpenSectionStyleIndex,
       chunkIndex: this.nextChunkIndex,
     })
+  }
+
+  private createWorker(): Worker {
+    const worker = new Worker(new URL('./wfc.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+    worker.onmessage = this.handleWorkerMessage.bind(this)
+    return worker
   }
 
   private handleWorkerMessage(event: MessageEvent<WorkerResponse>): void {
@@ -193,8 +196,10 @@ export class ChunkManager {
     }
     this.lastGeneratedChunkIndex = chunkIndex
     this.lastRightColumn = chunk.rightColumn
+    this.lastLayerRightColumns = chunk.layerRightColumns ?? null
+    this.lastGroundOpenSectionStyleIndex =
+      chunk.rightGroundOpenSectionStyleIndex ?? null
     this.nextChunkIndex = chunkIndex + 1
-    this.chunkQueue.push(chunk)
 
     const lifecycle: ChunkLifecycle = {
       chunkIndex,
@@ -214,42 +219,14 @@ export class ChunkManager {
     const stalledChunkIndex = this.pendingWorkerChunkIndex
     this.generating = false
     this.pendingWorkerChunkIndex = null
-    this.lastWorkerError = `Worker stalled while generating chunk ${stalledChunkIndex}; using fallback terrain.`
-
-    const fallbackChunk = this.buildFallbackChunk()
-    this.lastGeneratedChunkIndex = stalledChunkIndex
+    this.lastWorkerError = `Worker stalled while generating chunk ${stalledChunkIndex}; restarting worker and retrying.`
     this.lastAttemptCount = 0
-    this.lastRightColumn = fallbackChunk.rightColumn
-    this.nextChunkIndex = stalledChunkIndex + 1
-    this.chunkQueue.push(fallbackChunk)
-
-    const lifecycle: ChunkLifecycle = {
-      chunkIndex: stalledChunkIndex,
-      rightEdgePx: (stalledChunkIndex + 1) * CHUNK_WIDTH_PX,
-      status: 'active',
-    }
-
-    this.onChunkReady(fallbackChunk, lifecycle)
+    this.clearWorkerStallTimer()
+    this.worker.terminate()
+    this.worker = this.createWorker()
+    // Re-queue the same chunk index instead of injecting fallback terrain.
+    this.pendingRequests += 1
     this.pumpQueue()
-  }
-
-  private buildFallbackChunk(): Chunk {
-    const groundHeight = 4
-    const groundStartRow = GRID_HEIGHT - groundHeight
-    const tiles: Tile[][] = Array.from({ length: GRID_HEIGHT }, (_, row) =>
-      Array.from({ length: GRID_WIDTH }, () =>
-        row >= groundStartRow ? Tile.GROUND : Tile.EMPTY
-      )
-    )
-    const supportTiles: Tile[][] = Array.from({ length: GRID_HEIGHT }, () =>
-      Array.from({ length: GRID_WIDTH }, () => Tile.EMPTY)
-    )
-
-    return {
-      tiles,
-      supportTiles,
-      rightColumn: tiles.map((row) => row[GRID_WIDTH - 1]),
-    }
   }
 
   private clearWorkerStallTimer(): void {

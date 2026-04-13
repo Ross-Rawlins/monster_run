@@ -1,6 +1,14 @@
-import { SUPPORT_GENERATION_CONSTRAINTS } from '../../../config/supportGeneration'
+// MIGRATED FROM: SupportGenerator.ts → CaveGenerator
+// Uses ILayerGenerator interface with LayerCompositor for tilemap generation.
+
+import { SUPPORT_GENERATION_CONSTRAINTS as CAVE_GENERATION_CONSTRAINTS } from '../../../config/supportGeneration'
 import { Tile } from '../TileTypes'
 import { clamp, randomInt } from '../generators/GenerationMath'
+import type { GeneratorOptions } from '../contracts/GeneratorOptions'
+import type {
+  GeneratorContext,
+  ILayerGenerator,
+} from '../contracts/ILayerGenerator'
 
 interface PlatformSegment {
   startColumn: number
@@ -9,45 +17,67 @@ interface PlatformSegment {
   bottomRow: number
 }
 
-interface SupportGeneratorOptions {
-  width: number
-  height: number
-  random: () => number
-}
-
 interface Span {
   left: number
   right: number
 }
 
-export class SupportGenerator {
+export class CaveGenerator implements ILayerGenerator {
   private readonly width: number
   private readonly height: number
   private readonly random: () => number
 
-  constructor(options: SupportGeneratorOptions) {
+  constructor(options: GeneratorOptions) {
     this.width = options.width
     this.height = options.height
     this.random = options.random
   }
 
-  public placeSupports(tiles: Tile[][]): Tile[][] {
-    const supportTiles = Array.from({ length: this.height }, () =>
-      Array.from({ length: this.width }, () => Tile.EMPTY)
-    )
-
-    const segments = this.findPlatformSegments(tiles)
-
-    for (const segment of segments) {
-      this.buildSupportForSegment(tiles, supportTiles, segment)
-    }
-
-    return supportTiles
+  /** Implements ILayerGenerator. */
+  public generate(tiles: Tile[][], context: GeneratorContext): void {
+    const platformLayer = context.completedLayers.get('platforms')
+    const groundLayer = context.completedLayers.get('ground')
+    const terrainRef = this.buildTerrainReference(platformLayer, groundLayer)
+    this.placeCaves(tiles, terrainRef)
   }
 
-  private buildSupportForSegment(
+  /**
+   * Writes cave tiles directly into `tiles` using `terrainRef` to locate platform
+   * segments and detect ground below.
+   */
+  private placeCaves(
     tiles: Tile[][],
-    supportTiles: Tile[][],
+    terrainRef: ReadonlyArray<ReadonlyArray<Tile>>
+  ): void {
+    const segments = this.findPlatformSegments(terrainRef)
+
+    for (const segment of segments) {
+      this.buildCaveForSegment(tiles, terrainRef, segment)
+    }
+  }
+
+  private buildTerrainReference(
+    platformLayer: ReadonlyArray<ReadonlyArray<Tile>> | undefined,
+    groundLayer: ReadonlyArray<ReadonlyArray<Tile>> | undefined
+  ): ReadonlyArray<ReadonlyArray<Tile>> {
+    if (!platformLayer && !groundLayer) {
+      return []
+    }
+    if (!platformLayer) return groundLayer!
+    if (!groundLayer) return platformLayer
+
+    return Array.from({ length: this.height }, (_, row) =>
+      Array.from({ length: this.width }, (_, col) => {
+        const g = (groundLayer[row]?.[col] as Tile | undefined) ?? Tile.EMPTY
+        const p = (platformLayer[row]?.[col] as Tile | undefined) ?? Tile.EMPTY
+        return p !== Tile.EMPTY ? p : g
+      })
+    )
+  }
+
+  private buildCaveForSegment(
+    tiles: Tile[][],
+    terrainRef: ReadonlyArray<ReadonlyArray<Tile>>,
     segment: PlatformSegment
   ): void {
     const minUnderPlatformWidth = 3
@@ -66,7 +96,7 @@ export class SupportGenerator {
     const guaranteedAnchorWidth = clamp(
       Math.max(
         minUnderPlatformWidth,
-        SUPPORT_GENERATION_CONSTRAINTS.minSupportWidth
+        CAVE_GENERATION_CONSTRAINTS.minSupportWidth
       ),
       1,
       segmentWidth
@@ -87,7 +117,7 @@ export class SupportGenerator {
     )
     const topCapCenter = Math.round((anchorSpan.left + anchorSpan.right) * 0.5)
 
-    const maxFlare = Math.max(0, SUPPORT_GENERATION_CONSTRAINTS.maxFlareColumns)
+    const maxFlare = Math.max(0, CAVE_GENERATION_CONSTRAINTS.maxFlareColumns)
     const supportDepthToBottom = Math.max(1, this.height - 1 - underPlatformRow)
     const baseBottomFanOut = Math.max(
       maxFlare + 6,
@@ -98,17 +128,17 @@ export class SupportGenerator {
 
     const jitterLimit = Math.max(
       0,
-      SUPPORT_GENERATION_CONSTRAINTS.maxHorizontalJitterPerRow
+      CAVE_GENERATION_CONSTRAINTS.maxHorizontalJitterPerRow
     )
     const jitterStride = Math.max(
       1,
-      SUPPORT_GENERATION_CONSTRAINTS.edgeChangeStrideRows
+      CAVE_GENERATION_CONSTRAINTS.edgeChangeStrideRows
     )
     let horizontalShift = 0
 
     const trimTailRows = randomInt(
-      SUPPORT_GENERATION_CONSTRAINTS.trimmedEdgeTailMinRows,
-      SUPPORT_GENERATION_CONSTRAINTS.trimmedEdgeTailMaxRows,
+      CAVE_GENERATION_CONSTRAINTS.trimmedEdgeTailMinRows,
+      CAVE_GENERATION_CONSTRAINTS.trimmedEdgeTailMaxRows,
       this.random
     )
     const trimSide = randomInt(0, 2, this.random)
@@ -132,8 +162,7 @@ export class SupportGenerator {
       let desired: Span
 
       if (row <= underPlatformRow) {
-        // Keep a guaranteed direct under-platform contact row so supports are
-        // structurally anchored below the platform, not only touching sides.
+        // Keep a guaranteed direct under-platform contact row so caves are anchored below
         if (row === underPlatformRow) {
           desired = anchorSpan
         } else {
@@ -192,12 +221,12 @@ export class SupportGenerator {
         return
       }
 
-      this.paintSupportRow(supportTiles, row, writableSpan)
+      this.paintCaveRow(tiles, row, writableSpan)
       previousWritableSpan = writableSpan
 
       if (
-        SUPPORT_GENERATION_CONSTRAINTS.stopWhenTouchingGround &&
-        this.spanTouchesGroundBelow(tiles, row, writableSpan)
+        CAVE_GENERATION_CONSTRAINTS.stopWhenTouchingGround &&
+        this.spanTouchesGroundBelow(terrainRef, row, writableSpan)
       ) {
         return
       }
@@ -225,8 +254,7 @@ export class SupportGenerator {
     let left = current.left
     let right = current.right
 
-    // Keep at least one shared column with the previous row so supports remain
-    // visually connected with no vertical gap.
+    // Keep at least one shared column with the previous row so caves remain visually connected
     if (right < previous.left) {
       right = previous.left
     }
@@ -282,16 +310,16 @@ export class SupportGenerator {
     return { left, right }
   }
 
-  private paintSupportRow(tiles: Tile[][], row: number, span: Span): void {
+  private paintCaveRow(tiles: Tile[][], row: number, span: Span): void {
     for (let col = span.left; col <= span.right; col += 1) {
       if (tiles[row][col] === Tile.EMPTY) {
-        tiles[row][col] = Tile.SUPPORT
+        tiles[row][col] = Tile.CAVE
       }
     }
   }
 
   private spanTouchesGroundBelow(
-    tiles: Tile[][],
+    tiles: ReadonlyArray<ReadonlyArray<Tile>>,
     row: number,
     span: Span
   ): boolean {
@@ -338,7 +366,9 @@ export class SupportGenerator {
     return { left, right }
   }
 
-  private findPlatformSegments(tiles: Tile[][]): PlatformSegment[] {
+  private findPlatformSegments(
+    tiles: ReadonlyArray<ReadonlyArray<Tile>>
+  ): PlatformSegment[] {
     const segments: PlatformSegment[] = []
 
     for (let row = 0; row < this.height; row += 1) {
@@ -378,7 +408,7 @@ export class SupportGenerator {
   }
 
   private isPlatformBand(
-    tiles: Tile[][],
+    tiles: ReadonlyArray<ReadonlyArray<Tile>>,
     row: number,
     startColumn: number,
     endColumn: number

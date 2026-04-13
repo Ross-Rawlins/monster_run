@@ -8,9 +8,9 @@ import {
   resolvePlatformTileFrame,
 } from './platforms/PlatformRules'
 import {
-  getSupportRuleFrameIndices,
-  resolveSupportTileFrame,
-} from './supports/SupportRules'
+  getCaveRuleFrameIndices,
+  resolveCaveTileFrame,
+} from './caves/CaveRules'
 import { TILE_ASSIGNMENTS } from '../../config/tileAssignments'
 import { TILE_ROW_OPTIONS_BANDS, TILE_RULES } from '../../config/tileGeneration'
 
@@ -25,14 +25,14 @@ export enum Tile {
   EMPTY = 0,
   PLATFORM = 5,
   GROUND = 6,
-  SUPPORT = 7,
+  CAVE = 7,
 }
 
 export const ALL_TILES: Tile[] = [
   Tile.EMPTY,
   Tile.PLATFORM,
   Tile.GROUND,
-  Tile.SUPPORT,
+  Tile.CAVE,
 ]
 
 function toTileArray(tileIds: number[]): Tile[] {
@@ -53,7 +53,7 @@ export const RULES: Record<Tile, DirectionRuleSet> = {
   [Tile.EMPTY]: getRuleForTile(Tile.EMPTY),
   [Tile.PLATFORM]: getRuleForTile(Tile.PLATFORM),
   [Tile.GROUND]: getRuleForTile(Tile.GROUND),
-  [Tile.SUPPORT]: getRuleForTile(Tile.SUPPORT),
+  [Tile.CAVE]: getRuleForTile(Tile.CAVE),
 }
 
 export const COLLIDABLE_TILES = new Set<Tile>(
@@ -66,7 +66,7 @@ export const TILE_RENDER_INDEX: Record<Tile, number> = {
   [Tile.EMPTY]: TILE_ASSIGNMENTS.emptyFrame,
   [Tile.PLATFORM]: TILE_ASSIGNMENTS.platformFrame,
   [Tile.GROUND]: TILE_ASSIGNMENTS.groundFrame,
-  [Tile.SUPPORT]: TILE_ASSIGNMENTS.supportFrame,
+  [Tile.CAVE]: TILE_ASSIGNMENTS.caveFrame,
 }
 
 interface TileFrameConfig {
@@ -94,20 +94,20 @@ const TILE_FRAME_CONFIG: Record<Tile, TileFrameConfig> = {
     getRuleFrames: (collisionOnly = false) =>
       getGroundRuleFrameIndices(collisionOnly),
   },
-  [Tile.SUPPORT]: {
-    // Supports remain non-collidable by generation design.
+  [Tile.CAVE]: {
+    // Caves are decorative and non-collidable by design.
     hasCollision: false,
-    baseFrame: TILE_ASSIGNMENTS.supportFrame,
+    baseFrame: TILE_ASSIGNMENTS.caveFrame,
     getRuleFrames: (collisionOnly = false) =>
-      getSupportRuleFrameIndices(collisionOnly),
+      getCaveRuleFrameIndices(collisionOnly),
     extraCollisionFrames: [
-      TILE_ASSIGNMENTS.supportOpenLeftFrame,
-      TILE_ASSIGNMENTS.supportFrame,
-      TILE_ASSIGNMENTS.supportOpenRightFrame,
-      ...TILE_ASSIGNMENTS.supportTopFrames,
-      ...TILE_ASSIGNMENTS.supportMidFrames,
-      ...TILE_ASSIGNMENTS.supportCornerFrames,
-      ...TILE_ASSIGNMENTS.supportBottomFrames,
+      TILE_ASSIGNMENTS.caveOpenLeftFrame,
+      TILE_ASSIGNMENTS.caveFrame,
+      TILE_ASSIGNMENTS.caveOpenRightFrame,
+      ...TILE_ASSIGNMENTS.caveTopFrames,
+      ...TILE_ASSIGNMENTS.caveMidFrames,
+      ...TILE_ASSIGNMENTS.caveCornerFrames,
+      ...TILE_ASSIGNMENTS.caveBottomFrames,
     ],
   },
 }
@@ -143,7 +143,11 @@ export function getCollisionFrameIndicesForTile(tile: Tile): number[] {
 export function getRenderFrameForTileAt(
   tiles: number[][],
   row: number,
-  col: number
+  col: number,
+  options?: {
+    groundStyleBounds?: { minCol?: number; maxCol?: number }
+    groundStyleByColumn?: number[]
+  }
 ): number {
   const tile = tiles[row][col] as Tile
 
@@ -157,16 +161,21 @@ export function getRenderFrameForTileAt(
   }
 
   if (tile === Tile.GROUND) {
-    return resolveGroundTileFrame(row, col, TILE_ASSIGNMENTS.groundFrame, tiles)
-  }
-
-  if (tile === Tile.SUPPORT) {
-    return resolveSupportTileFrame(
+    return resolveGroundTileFrame(
       row,
       col,
-      TILE_ASSIGNMENTS.supportFrame,
-      tiles
+      TILE_ASSIGNMENTS.groundFrame,
+      tiles,
+      {
+        minCol: options?.groundStyleBounds?.minCol,
+        maxCol: options?.groundStyleBounds?.maxCol,
+        styleByColumn: options?.groundStyleByColumn,
+      }
     )
+  }
+
+  if (tile === Tile.CAVE) {
+    return resolveCaveTileFrame(row, col, TILE_ASSIGNMENTS.caveFrame, tiles)
   }
 
   return TILE_RENDER_INDEX[tile]

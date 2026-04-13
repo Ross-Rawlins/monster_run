@@ -1,22 +1,7 @@
 import * as Phaser from 'phaser'
+import { resolveParallaxLayerConfigs } from '../config/parallax'
 import { RUNNER_ASSET_KEYS } from '../config/keys'
-
-interface LayerConfig {
-  frame: string
-  depth: number
-  speed: number
-  top: number
-  stripHeight: number
-  fillColor: number
-  fillDepth: number
-}
-
-interface ParallaxLayer {
-  config: LayerConfig
-  fill: Phaser.GameObjects.Rectangle
-  scaledWidth: number
-  sprites: Phaser.GameObjects.Image[]
-}
+import type { ParallaxLayer } from './parallax/types'
 
 export class ParallaxBackgroundManager {
   private readonly layers: ParallaxLayer[] = []
@@ -30,46 +15,7 @@ export class ParallaxBackgroundManager {
   }
 
   private createLayers(): void {
-    const gridHeight = this.cameraHeight / 14
-
-    // Grid rows are 1-based in design notes:
-    // - Clouds start at row 4 and occupy 2 rows
-    // - Trees start at row 7 and occupy 2 rows
-    // - Front foliage starts at row 9 and occupies 2 rows
-    const cloudTop = gridHeight * 3
-    const treeTop = gridHeight * 6
-    const frontTop = gridHeight * 8
-    const stripHeight = gridHeight * 2
-
-    const layerConfigs: LayerConfig[] = [
-      {
-        frame: 'Tilemap_Background_Spooky_Back.png',
-        depth: -10,
-        speed: 0.1,
-        top: cloudTop,
-        stripHeight,
-        fillColor: 0x3f7a7a,
-        fillDepth: -30,
-      },
-      {
-        frame: 'Tilemap_Background_Spooky_Mid.png',
-        depth: -5,
-        speed: 0.18,
-        top: treeTop,
-        stripHeight,
-        fillColor: 0x3f5f6c,
-        fillDepth: -15,
-      },
-      {
-        frame: 'Tilemap_Background_Spooky_Front.png',
-        depth: -2,
-        speed: 0.4,
-        top: frontTop,
-        stripHeight,
-        fillColor: 0x2d3e38,
-        fillDepth: -8,
-      },
-    ]
+    const layerConfigs = resolveParallaxLayerConfigs(this.cameraHeight)
 
     layerConfigs.forEach((config, layerIndex) => {
       const frame = this.scene.textures.getFrame(
@@ -82,29 +28,26 @@ export class ParallaxBackgroundManager {
       }
 
       const scale = config.stripHeight / frame.height
-      const scaledWidth = frame.width * scale
-      const scaledHeight = config.stripHeight
-      const spriteCount = Math.ceil(this.cameraWidth / scaledWidth) + 2
+      const scaledWidth = Math.max(1, Math.round(frame.width * scale))
+      const scaledHeight = Math.max(1, Math.round(config.stripHeight))
+      const spriteCount = Math.ceil(this.cameraWidth / scaledWidth) + 3
       const sprites: Phaser.GameObjects.Image[] = []
 
-      // Image bottom is where the image strip ends
       const imageBottom = config.top + scaledHeight
-
-      // Next layer's top (or viewport bottom for last layer)
       const fillBottomY =
         layerIndex < layerConfigs.length - 1
           ? layerConfigs[layerIndex + 1].top
           : this.cameraHeight
 
-      // Fill only the gap between this image bottom and next layer top
-      const fillHeight = Math.max(0, fillBottomY - imageBottom)
-      const fillCenterY = imageBottom + fillHeight * 0.5
+      const fillTopY = imageBottom
+      const fillHeight = Math.max(0, Math.ceil(fillBottomY - fillTopY))
+      const fillCenterY = fillTopY + fillHeight * 0.5
 
       const fill = this.scene.add
         .rectangle(
           this.cameraWidth * 0.5,
           fillCenterY,
-          this.cameraWidth,
+          this.cameraWidth + 2,
           fillHeight,
           config.fillColor
         )
@@ -112,16 +55,17 @@ export class ParallaxBackgroundManager {
         .setScrollFactor(0)
 
       for (let index = 0; index < spriteCount; index += 1) {
+        const xPos = index * scaledWidth
         const sprite = this.scene.add.image(
-          scaledWidth * index + scaledWidth * 0.5,
+          xPos,
           config.top,
           RUNNER_ASSET_KEYS.BACKGROUND_ATLAS,
           config.frame
         )
 
         sprite
-          .setOrigin(0.5, 0)
-          .setScale(scale)
+          .setOrigin(0, 0)
+          .setDisplaySize(scaledWidth, scaledHeight)
           .setDepth(config.depth)
           .setScrollFactor(0)
 
@@ -141,9 +85,7 @@ export class ParallaxBackgroundManager {
       )
 
       layer.sprites.forEach((sprite, index) => {
-        sprite.x = Math.round(
-          index * layer.scaledWidth - offset + layer.scaledWidth * 0.5
-        )
+        sprite.x = Math.floor(index * layer.scaledWidth - offset)
       })
     })
   }

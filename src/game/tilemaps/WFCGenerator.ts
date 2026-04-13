@@ -1,8 +1,9 @@
-import type { Chunk } from '../../types/tilemaps'
+import type { Chunk, LayerBoundaryColumns } from '../../types/tilemaps'
 import { GRID_HEIGHT, GRID_WIDTH, Tile } from './TileTypes'
 import { GroundGenerator } from './ground/GroundGenerator'
 import { PlatformGenerator } from './platforms/PlatformGenerator'
-import { SupportGenerator } from './supports/SupportGenerator'
+import { CaveGenerator } from './caves/CaveGenerator'
+import { LayerCompositor } from './compositor/LayerCompositor'
 
 interface GeneratorOptions {
   seed?: number
@@ -26,6 +27,8 @@ export class WFCGenerator {
   private readonly height: number
   private readonly random: () => number
   private seededLeftColumn: Tile[] | null = null
+  private seededLayerLeftColumns: Partial<LayerBoundaryColumns> | null = null
+  private previousGroundOpenSectionStyleIndex: number | null = null
 
   constructor(options: GeneratorOptions = {}) {
     this.width = options.width ?? GRID_WIDTH
@@ -43,59 +46,100 @@ export class WFCGenerator {
     this.seededLeftColumn = previousRightColumn
   }
 
+  public seedLayerLeftColumns(columns: LayerBoundaryColumns): void {
+    this.validateLayerColumnLength(columns.ground, 'ground')
+    this.validateLayerColumnLength(columns.platforms, 'platforms')
+    this.validateLayerColumnLength(columns.caves, 'caves')
+    this.seededLayerLeftColumns = columns
+  }
+
+  public seedGroundOpenSectionStyleIndex(styleIndex: number | null): void {
+    this.previousGroundOpenSectionStyleIndex = styleIndex
+  }
+
   public generate(): Chunk {
-    const tiles: Tile[][] = Array.from({ length: this.height }, () =>
-      Array.from({ length: this.width }, () => Tile.EMPTY)
+    const options = {
+      width: this.width,
+      height: this.height,
+      random: this.random,
+    }
+
+    const groundGenerator = new GroundGenerator(options)
+    groundGenerator.seedCarryInOpenSectionStyleIndex(
+      this.previousGroundOpenSectionStyleIndex
     )
 
-    this.generateGround(tiles)
-    this.generatePlatforms(tiles)
-    const supportTiles = this.generateSupports(tiles)
-    this.applySeededLeftColumn(tiles)
+    const compositor = new LayerCompositor({
+      width: this.width,
+      height: this.height,
+      seededLeftColumn: this.seededLeftColumn,
+      seededLayerColumns: this.seededLayerLeftColumns,
+    })
+
+    const result = compositor.compose([
+      { name: 'ground', generator: groundGenerator },
+      { name: 'platforms', generator: new PlatformGenerator(options) },
+      { name: 'caves', generator: new CaveGenerator(options) },
+    ])
+
+    const groundLayer = result.layers.get('ground')!
+    const platformLayer = result.layers.get('platforms')!
+    const caveLayer = result.layers.get('caves')!
+
+    // Merge ground and platform into a single terrain grid for the existing Chunk interface.
+    const tiles = this.mergeLayers([groundLayer, platformLayer])
+
+    // Restore seeded left column onto the merged terrain for cross-chunk continuity.
+    if (this.seededLeftColumn) {
+      for (let row = 0; row < this.height; row += 1) {
+        tiles[row][0] = this.seededLeftColumn[row]
+      }
+    }
 
     return {
       tiles,
-      supportTiles,
+      supportTiles: caveLayer,
       rightColumn: tiles.map((row) => row[this.width - 1]),
+      groundTopStyleByColumn: groundGenerator.getTopStyleByColumn(),
+      rightGroundOpenSectionStyleIndex:
+        groundGenerator.getRightOpenSectionStyleIndex(),
+      layerRightColumns: {
+        ground:
+          result.rightColumns.get('ground') ??
+          Array.from({ length: this.height }, () => Tile.EMPTY),
+        platforms:
+          result.rightColumns.get('platforms') ??
+          Array.from({ length: this.height }, () => Tile.EMPTY),
+        caves:
+          result.rightColumns.get('caves') ??
+          Array.from({ length: this.height }, () => Tile.EMPTY),
+      },
     }
   }
 
-  private generateGround(tiles: Tile[][]): void {
-    const groundGenerator = new GroundGenerator({
-      width: this.width,
-      height: this.height,
-      random: this.random,
-    })
-
-    groundGenerator.placeGround(tiles, this.seededLeftColumn)
+  private validateLayerColumnLength(column: Tile[], name: string): void {
+    if (column.length !== this.height) {
+      throw new Error(
+        `Expected ${name} right column to contain ${this.height} tiles, received ${column.length}`
+      )
+    }
   }
 
-  private generatePlatforms(tiles: Tile[][]): void {
-    const platformGenerator = new PlatformGenerator({
-      width: this.width,
-      random: this.random,
-    })
+  private mergeLayers(layers: Tile[][][]): Tile[][] {
+    const merged: Tile[][] = Array.from({ length: this.height }, () =>
+      Array.from({ length: this.width }, () => Tile.EMPTY)
+    )
 
-    platformGenerator.placePlatforms(tiles)
-  }
-
-  private generateSupports(tiles: Tile[][]): Tile[][] {
-    const supportGenerator = new SupportGenerator({
-      width: this.width,
-      height: this.height,
-      random: this.random,
-    })
-
-    return supportGenerator.placeSupports(tiles)
-  }
-
-  private applySeededLeftColumn(tiles: Tile[][]): void {
-    if (!this.seededLeftColumn) {
-      return
+    for (const layer of layers) {
+      for (let row = 0; row < this.height; row += 1) {
+        for (let col = 0; col < this.width; col += 1) {
+          if (layer[row][col] !== Tile.EMPTY) {
+            merged[row][col] = layer[row][col]
+          }
+        }
+      }
     }
 
-    for (let row = 0; row < this.height; row += 1) {
-      tiles[row][0] = this.seededLeftColumn[row]
-    }
+    return merged
   }
 }

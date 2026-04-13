@@ -1,5 +1,11 @@
 import type { Tile } from '../game/tilemaps/TileTypes'
 
+export interface LayerBoundaryColumns {
+  ground: Tile[]
+  platforms: Tile[]
+  caves: Tile[]
+}
+
 export type Direction = 'up' | 'down' | 'left' | 'right'
 
 export interface DirectionRuleSet {
@@ -26,10 +32,15 @@ export interface Chunk {
   tiles: Tile[][]
   supportTiles: Tile[][]
   rightColumn: Tile[]
+  layerRightColumns?: LayerBoundaryColumns
+  groundTopStyleByColumn?: number[]
+  rightGroundOpenSectionStyleIndex?: number | null
 }
 
 export interface WorkerMessage {
   previousRightColumn: Tile[] | null
+  previousLayerRightColumns?: LayerBoundaryColumns | null
+  previousGroundOpenSectionStyleIndex?: number | null
   chunkIndex: number
 }
 
