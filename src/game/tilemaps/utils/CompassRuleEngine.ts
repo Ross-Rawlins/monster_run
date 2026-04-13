@@ -126,6 +126,11 @@ function tokenMatches(
     return actualValue !== excluded
   }
 
+  if (/^!-?\d+$/.test(normalized)) {
+    const excluded = Number(normalized.slice(1))
+    return actualValue !== excluded
+  }
+
   if (/^-?\d+$/.test(normalized)) {
     return actualValue === Number(normalized)
   }

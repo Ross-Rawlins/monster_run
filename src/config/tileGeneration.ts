@@ -1,6 +1,6 @@
 import type { DirectionRuleSet } from '../types/tilemaps'
-import { GROUND_GENERATION_CONSTRAINTS } from '../game/tilemaps/ground/GroundRules'
-import { PLATFORM_GENERATION_CONSTRAINTS } from '../game/tilemaps/platforms/PlatformRules'
+import { GROUND_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/ground/GroundRules'
+import { PLATFORM_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/platforms/PlatformRules'
 import { SUPPORT_GENERATION_CONSTRAINTS } from './supportGeneration'
 
 export interface TileRuleDefinition {

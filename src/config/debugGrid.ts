@@ -7,6 +7,8 @@ export const DEBUG_GRID_STYLE = {
   platformCellAlpha: 0.9,
   supportCellColor: 0x1f7aff,
   supportCellAlpha: 0.9,
+  internalCellColor: 0xffd60a,
+  internalCellAlpha: 0.9,
   // Multiplier against tile size used for the per-cell numeric labels.
   labelFontSizeFactor: 0.42,
   labelMinFontSizePx: 12,

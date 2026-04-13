@@ -1,5 +1,12 @@
 export type CardinalDirection = 'N' | 'S' | 'W' | 'E'
 
+export interface HorizontalNeighborState {
+  hasLeft: boolean
+  hasRight: boolean
+}
+
+export type HorizontalRole = 'left_edge' | 'center' | 'right_edge' | 'isolated'
+
 export interface SeamOptions {
   seamTileId: number
 }
@@ -62,6 +69,32 @@ export function gatherCardinalNeighbors(
     W: getCardinalNeighbor(tiles, row, col, 'W', oobValue, seam),
     E: getCardinalNeighbor(tiles, row, col, 'E', oobValue, seam),
   }
+}
+
+export function getHorizontalNeighborState(
+  tiles: number[][],
+  row: number,
+  col: number,
+  tileType: number
+): HorizontalNeighborState {
+  return {
+    hasLeft: isTileAt(tiles, row, col - 1, tileType),
+    hasRight: isTileAt(tiles, row, col + 1, tileType),
+  }
+}
+
+export function classifyHorizontalRole(
+  state: HorizontalNeighborState
+): HorizontalRole {
+  if (state.hasLeft && state.hasRight) {
+    return 'center'
+  }
+
+  if (!state.hasLeft && !state.hasRight) {
+    return 'isolated'
+  }
+
+  return state.hasLeft ? 'right_edge' : 'left_edge'
 }
 
 export function pickDeterministicVariant(

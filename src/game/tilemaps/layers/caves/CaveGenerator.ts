@@ -1,14 +1,14 @@
 // MIGRATED FROM: SupportGenerator.ts → CaveGenerator
 // Uses ILayerGenerator interface with LayerCompositor for tilemap generation.
 
-import { SUPPORT_GENERATION_CONSTRAINTS as CAVE_GENERATION_CONSTRAINTS } from '../../../config/supportGeneration'
-import { Tile } from '../TileTypes'
-import { clamp, randomInt } from '../generators/GenerationMath'
-import type { GeneratorOptions } from '../contracts/GeneratorOptions'
+import { SUPPORT_GENERATION_CONSTRAINTS as CAVE_GENERATION_CONSTRAINTS } from '../../../../config/supportGeneration'
+import { Tile } from '../../TileTypes'
+import { clamp, randomInt } from '../../generators/GenerationMath'
+import type { GeneratorOptions } from '../../contracts/GeneratorOptions'
 import type {
   GeneratorContext,
   ILayerGenerator,
-} from '../contracts/ILayerGenerator'
+} from '../../contracts/ILayerGenerator'
 
 interface PlatformSegment {
   startColumn: number

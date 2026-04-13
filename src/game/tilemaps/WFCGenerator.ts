@@ -1,8 +1,8 @@
 import type { Chunk, LayerBoundaryColumns } from '../../types/tilemaps'
 import { GRID_HEIGHT, GRID_WIDTH, Tile } from './TileTypes'
-import { GroundGenerator } from './ground/GroundGenerator'
-import { PlatformGenerator } from './platforms/PlatformGenerator'
-import { CaveGenerator } from './caves/CaveGenerator'
+import { GroundGenerator } from './layers/ground/GroundGenerator'
+import { PlatformGenerator } from './layers/platforms/PlatformGenerator'
+import { CaveGenerator } from './layers/caves/CaveGenerator'
 import { LayerCompositor } from './compositor/LayerCompositor'
 
 interface GeneratorOptions {

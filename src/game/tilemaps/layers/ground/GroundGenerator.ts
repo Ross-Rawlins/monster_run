@@ -1,11 +1,11 @@
 import { GROUND_GENERATION_CONSTRAINTS } from './GroundRules'
-import { Tile } from '../TileTypes'
-import { randomInt } from '../generators/GenerationMath'
-import type { GeneratorOptions } from '../contracts/GeneratorOptions'
+import { Tile } from '../../TileTypes'
+import { randomInt } from '../../generators/GenerationMath'
+import type { GeneratorOptions } from '../../contracts/GeneratorOptions'
 import type {
   GeneratorContext,
   ILayerGenerator,
-} from '../contracts/ILayerGenerator'
+} from '../../contracts/ILayerGenerator'
 
 export class GroundGenerator implements ILayerGenerator {
   private readonly width: number

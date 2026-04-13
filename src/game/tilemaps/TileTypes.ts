@@ -2,15 +2,15 @@ import type { DirectionRuleSet } from '../../types/tilemaps'
 import {
   getGroundRuleFrameIndices,
   resolveGroundTileFrame,
-} from './ground/GroundRules'
+} from './layers/ground/GroundRules'
 import {
   getPlatformRuleFrameIndices,
   resolvePlatformTileFrame,
-} from './platforms/PlatformRules'
+} from './layers/platforms/PlatformRules'
 import {
   getCaveRuleFrameIndices,
   resolveCaveTileFrame,
-} from './caves/CaveRules'
+} from './layers/caves/CaveRules'
 import { TILE_ASSIGNMENTS } from '../../config/tileAssignments'
 import { TILE_ROW_OPTIONS_BANDS, TILE_RULES } from '../../config/tileGeneration'
 

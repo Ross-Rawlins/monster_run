@@ -10,6 +10,10 @@ import {
   type ChunkManagerDiagnostics,
 } from '../tilemaps/ChunkManager'
 import {
+  GROUND_INTERNAL_DEBUG_OFFSET_TILES,
+  isGroundInternalDebugCell,
+} from '../tilemaps/layers/ground/GroundRules'
+import {
   COLLIDABLE_TILES,
   getCollisionFrameIndicesForTile,
   getRenderFrameForTileAt,
@@ -42,6 +46,7 @@ const MANUAL_CAMERA_SCROLL_MODE = true
 const FALL_RECOVERY_BUFFER_TILES = 4
 const CONTINUOUS_SCROLL_SPEED_PX = 180
 const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
+const INTERNAL_DEBUG_TILE_VALUE = 8
 
 interface TileStats {
   empty: number
@@ -845,16 +850,26 @@ export default class GameScene extends Phaser.Scene {
           supportTile === Tile.CAVE &&
           supportResolved === TILE_RENDER_INDEX[Tile.EMPTY]
 
-        const effectiveTile = isUnresolvedSupport ? Tile.CAVE : tile
-        const effectiveUnresolved = isUnresolvedTile || isUnresolvedSupport
+        const effectiveTile =
+          tile !== Tile.EMPTY ? tile : isUnresolvedSupport ? Tile.CAVE : tile
+        const effectiveUnresolved =
+          tile !== Tile.EMPTY ? isUnresolvedTile : isUnresolvedSupport
+        const isInternalDebugCell = isGroundInternalDebugCell(
+          chunk.tiles,
+          row,
+          col,
+          GROUND_INTERNAL_DEBUG_OFFSET_TILES
+        )
         const labelText = this.getDebugLabelText(
           effectiveTile,
-          effectiveUnresolved
+          effectiveUnresolved,
+          isInternalDebugCell
         )
 
         this.drawDebugCellFill(
           effectiveTile,
           effectiveUnresolved,
+          isInternalDebugCell,
           xOffset + col * cellSize,
           yOffset + row * cellSize,
           cellSize
@@ -881,7 +896,15 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private getDebugLabelText(tile: Tile, isUnresolvedTile: boolean): string {
+  private getDebugLabelText(
+    tile: Tile,
+    isUnresolvedTile: boolean,
+    isInternalDebugCell: boolean
+  ): string {
+    if (isInternalDebugCell) {
+      return String(INTERNAL_DEBUG_TILE_VALUE)
+    }
+
     if (tile === Tile.EMPTY) {
       return '-1'
     }
@@ -892,10 +915,22 @@ export default class GameScene extends Phaser.Scene {
   private drawDebugCellFill(
     tile: Tile,
     isUnresolvedTile: boolean,
+    isInternalDebugCell: boolean,
     x: number,
     y: number,
     cellSize: number
   ): void {
+    if (isInternalDebugCell) {
+      this.fillDebugCell(
+        DEBUG_GRID_STYLE.internalCellColor,
+        DEBUG_GRID_STYLE.internalCellAlpha,
+        x,
+        y,
+        cellSize
+      )
+      return
+    }
+
     if (!isUnresolvedTile) {
       return
     }
