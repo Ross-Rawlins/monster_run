@@ -1,28 +1,31 @@
 import {
   type AutotileTable,
-  collectAutotileFrames,
   computeBitmask,
   maskLabel,
-  resolveAutotileFrame,
 } from '../../rules/Autotiler'
-import type { LayerRule } from '../../rules/ruleTypes'
+import {
+  collectDeclarativeRuleFrames,
+  type LayerRule,
+} from '../../rules/ruleTypes'
 import {
   classifyHorizontalRole,
   getHorizontalNeighborState,
 } from '../../rules/neighbors'
+import { toFrameIndex } from '../../utils/frameIndex'
 import { BaseLayerRules } from '../base/BaseLayerRules'
-import { SUPPORT_GENERATION_CONSTRAINTS } from '../../../../config/supportGeneration'
+import { CAVE_GENERATION_CONSTRAINTS, TILE_CAVE } from './CaveConfig'
 import type {
   CaveGenerationConstraints,
   CaveRuleContext,
   CaveSignature,
 } from './types'
 
-export type { CaveGenerationConstraints, CaveRuleContext, CaveSignature }
-
-export const CAVE_GENERATION_CONSTRAINTS = SUPPORT_GENERATION_CONSTRAINTS
-
-const TILE_CAVE = 7
+export type {
+  CaveGenerationConstraints,
+  CaveRuleContext,
+  CaveSignature,
+} from './types'
+export { CAVE_GENERATION_CONSTRAINTS } from './CaveConfig'
 
 // ─── Bitmask Autotile Table ──────────────────────────────────────────
 // Bitmask layout: NW=1  N=2  NE=4  W=8  E=16  SW=32  S=64  SE=128
@@ -107,31 +110,39 @@ export function formatCaveNeighborhood(
 }
 
 // ─── Rules ───────────────────────────────────────────────────────────
+// Compass tokens: 7 = cave, '!7' = not cave (empty/OOB/other)
+// variants = per-tile style alternatives (selected by variantSeed)
 
 const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
+  // // ═══ Single-row (1-tall) ═══════════════════════════════════════════
+  // {
+  //   matches: [{ N: '!7', S: '!7', W: '!7', E: '!7' }],
+  //   frames: [toFrameIndex(218)],
+  // },
+  // {
+  //   matches: [{ N: '!7', S: '!7', W: '!7', E: 7 }],
+  //   frames: [toFrameIndex(225)],
+  // },
+  // {
+  //   matches: [{ N: '!7', S: '!7', W: 7, E: 7 }],
+  //   frames: [toFrameIndex(226)],
+  // },
+  // {
+  //   matches: [{ N: '!7', S: '!7', W: 7, E: '!7' }],
+  //   frames: [toFrameIndex(227)],
+  // },
+
+  // ═══ Fully enclosed interior ═══════════════════════════════════════
   {
-    resolve: ({ tiles, row, col, fallbackFrame }) => {
-      const mask = computeBitmask(tiles, row, col, TILE_CAVE)
-      const matchedFrames = CAVE_AUTOTILE[mask]
-      if (!matchedFrames || matchedFrames.length === 0) return null
-      return resolveAutotileFrame(CAVE_AUTOTILE, mask, row, col, fallbackFrame)
-    },
+    matches: [{ N: 7, S: 7, W: 7, E: 7, NW: 7, NE: 7, SW: 7, SE: 7 }],
+    variants: [[toFrameIndex(284)], [toFrameIndex(285)], [toFrameIndex(291)]],
   },
 ]
 
 // ─── Frame resolution ────────────────────────────────────────────────
 
-export function resolveCaveTileFrame(
-  row: number,
-  col: number,
-  fallbackFrame: number,
-  tiles: number[][]
-): number {
-  return caveRules.resolveFrame(row, col, fallbackFrame, tiles)
-}
-
 export function getCaveRuleFrameIndices(_collisionOnly = false): number[] {
-  return collectAutotileFrames(CAVE_AUTOTILE)
+  return collectDeclarativeRuleFrames(CAVE_RULES)
 }
 
 // ─── BaseLayerRules Implementation ───────────────────────────────────
@@ -155,7 +166,13 @@ export class CaveRulesImpl extends BaseLayerRules<
     fallbackFrame: number,
     tiles: number[][]
   ): CaveRuleContext {
-    return { tiles, row, col, fallbackFrame }
+    return {
+      tiles,
+      row,
+      col,
+      fallbackFrame,
+      variantSeed: row * 73856093 + col * 19349663,
+    }
   }
 
   getFrameIndices(collisionOnly?: boolean): number[] {

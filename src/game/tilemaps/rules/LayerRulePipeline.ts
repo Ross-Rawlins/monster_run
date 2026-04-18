@@ -1,6 +1,7 @@
 import {
   type CompassDirection,
-  findMatchingCompassRule,
+  buildNeighborhood,
+  matchesCompassPatterns,
 } from '../utils/CompassRuleEngine'
 import { pickDeterministicVariant } from './neighbors'
 import type {
@@ -30,19 +31,29 @@ export function resolveLayerRuleFrame<TContext extends BaseRuleContext>(
   context: TContext,
   options?: ResolveLayerRuleOptions
 ): number {
+  const emptyValue = options?.emptyValue ?? -1
+  const oobValue = options?.oobValue ?? -1
+
+  const hasAnyMatches = rules.some((r) => r.matches)
+  const neighborhood = hasAnyMatches
+    ? buildNeighborhood(
+        context.tiles,
+        context.row,
+        context.col,
+        options?.getNeighborValue
+      )
+    : undefined
+
   for (const rule of rules) {
     if (rule.matches) {
-      const matched = findMatchingCompassRule(
-        [{ matches: rule.matches, frames: [context.fallbackFrame] }],
-        context,
-        {
-          emptyValue: options?.emptyValue,
-          oobValue: options?.oobValue,
-          getNeighborValue: options?.getNeighborValue,
-        }
-      )
-
-      if (!matched) {
+      if (
+        !matchesCompassPatterns(
+          rule.matches,
+          neighborhood!,
+          emptyValue,
+          oobValue
+        )
+      ) {
         continue
       }
     }

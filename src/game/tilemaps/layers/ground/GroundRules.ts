@@ -3,58 +3,32 @@ import {
   collectAutotileFrames,
 } from '../../rules/Autotiler'
 import { resolveLayerRuleFrame } from '../../rules/LayerRulePipeline'
-import type { DeclarativeRule, LayerRule } from '../../rules/ruleTypes'
+import {
+  collectDeclarativeRuleFrames,
+  type LayerRule,
+} from '../../rules/ruleTypes'
+import {
+  COMPASS_DIRECTION_DELTAS,
+  type CompassDirection,
+} from '../../utils/CompassRuleEngine'
 import { toFrameIndex } from '../../utils/frameIndex'
 import { isGroundInternalDebugCell } from './GroundInternalDebug'
+import { GROUND_GENERATION_CONSTRAINTS, TILE_GROUND } from './GroundConfig'
 import { BaseLayerRules } from '../base/BaseLayerRules'
-import {
-  isTileOfType,
-  getTileAt,
-  isTopSurface,
-  getColumnHeight,
-  selectVariantFrame,
-} from '../base/tileHelpers'
+import { isTileOfType, isTopSurface } from '../base/tileHelpers'
 import type { GroundGenerationConstraints, GroundRuleContext } from './types'
 
-export type { GroundGenerationConstraints, GroundRuleContext }
+export type { GroundGenerationConstraints, GroundRuleContext } from './types'
+export { GROUND_GENERATION_CONSTRAINTS } from './GroundConfig'
 
 export {
   GROUND_INTERNAL_DEBUG_OFFSET_TILES,
   isGroundInternalDebugCell,
 } from './GroundInternalDebug'
-
-export const GROUND_GENERATION_CONSTRAINTS: GroundGenerationConstraints = {
-  tileId: 6,
-  minColumnHeightTiles: 2,
-  maxColumnHeightTiles: 8,
-  maxHeightStepDeltaRows: 2,
-  minSegmentLength: 3,
-  maxSegmentLength: 6,
-  minGapSize: 2,
-  maxGapSize: 3,
-  gapChancePerSegment: 0.3,
-  minimumStartingSolidColumns: 8,
-}
-
-const TILE_GROUND = 6
-const TILE_EMPTY = 0
-const TILE_CAVE = 7
 const GROUND_VARIANT_COUNT = 2
-
-// ─── Frame Constants ─────────────────────────────────────────────────
-
-const TOP_STYLE_DIRT_INDEX = 1
-const GROUND_INTERNAL_LEFT_FRAMES = [toFrameIndex(134), toFrameIndex(136)]
-const GROUND_INTERNAL_TOP_FRAMES = [toFrameIndex(125), toFrameIndex(126)]
-const GROUND_INTERNAL_RIGHT_FRAMES = [toFrameIndex(146), toFrameIndex(140)]
-const GROUND_INTERNAL_DIAGONAL_FRAME = toFrameIndex(163)
-const GROUND_BODY_LEFT_FRAME = toFrameIndex(132)
-const GROUND_BODY_MIDDLE_FRAME = toFrameIndex(133)
-const GROUND_BODY_RIGHT_FRAME = toFrameIndex(134)
-const DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME = toFrameIndex(148)
-const DIRT_INTERNAL_TOP_RIGHT_CORNER_FRAME = toFrameIndex(149)
-const GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME = toFrameIndex(49)
-const GRASS_INTERNAL_TOP_RIGHT_CORNER_FRAME = toFrameIndex(50)
+const GROUND_SURFACE_VALUE = 6
+const GROUND_INTERNAL_VALUE = 8
+const GROUND_SEPARATOR_VALUE = 1
 
 // ─── Bitmask Autotile Table ──────────────────────────────────────────
 // Bitmask layout: NW=1  N=2  NE=4  W=8  E=16  SW=32  S=64  SE=128
@@ -66,10 +40,6 @@ export const GROUND_AUTOTILE: AutotileTable = {}
 
 function isGroundAt(tiles: number[][], row: number, col: number): boolean {
   return isTileOfType(tiles, row, col, TILE_GROUND)
-}
-
-function isOpenInternalCornerDiagonal(tile: number): boolean {
-  return tile === -1 || tile === TILE_EMPTY || tile === TILE_CAVE
 }
 
 function isTopSurfaceGroundTile(
@@ -116,12 +86,95 @@ function findColumnTopSurfaceRow(tiles: number[][], col: number): number {
   return -1
 }
 
-function getGroundColumnHeight(
+// ── Pre-computed ground classification grid ──────────────────────────
+// Built once per tiles array (per chunk) via WeakMap cache.  Replaces
+// repeated isGroundInternalDebugCell + isGroundInGapRing calls with a
+// single O(1) array lookup per neighbor.
+
+const classificationCache = new WeakMap<number[][], number[][]>()
+
+function buildGroundClassificationGrid(tiles: number[][]): number[][] {
+  const rows = tiles.length
+  const cols = tiles[0].length
+  const grid: number[][] = Array.from(
+    { length: rows },
+    () => new Array<number>(cols)
+  )
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const tile = tiles[row][col]
+      if (tile !== TILE_GROUND) {
+        grid[row][col] = tile
+        continue
+      }
+      if (isGroundInternalDebugCell(tiles, row, col)) {
+        grid[row][col] = GROUND_INTERNAL_VALUE
+        continue
+      }
+      grid[row][col] = GROUND_SURFACE_VALUE
+    }
+  }
+
+  // Second pass: identify gap-ring cells (surface ground adjacent to internal)
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      if (grid[row][col] !== GROUND_SURFACE_VALUE) continue
+
+      for (let di = 0; di < 8; di += 1) {
+        const nr = row + GAP_RING_OFFSETS_R[di]
+        const nc = col + GAP_RING_OFFSETS_C[di]
+        if (
+          nr >= 0 &&
+          nr < rows &&
+          nc >= 0 &&
+          nc < cols &&
+          grid[nr][nc] === GROUND_INTERNAL_VALUE
+        ) {
+          grid[row][col] = GROUND_SEPARATOR_VALUE
+          break
+        }
+      }
+    }
+  }
+
+  return grid
+}
+
+// Pre-computed offset arrays for gap-ring 8-neighbor check
+const GAP_RING_OFFSETS_R = [-1, -1, -1, 0, 0, 1, 1, 1]
+const GAP_RING_OFFSETS_C = [-1, 0, 1, -1, 1, -1, 0, 1]
+
+function getGroundClassificationGrid(tiles: number[][]): number[][] {
+  let grid = classificationCache.get(tiles)
+  if (!grid) {
+    grid = buildGroundClassificationGrid(tiles)
+    classificationCache.set(tiles, grid)
+  }
+  return grid
+}
+
+function getGroundRuleNeighborValue(
+  tiles: number[][],
+  row: number,
+  col: number,
+  direction: CompassDirection
+): number {
+  const grid = getGroundClassificationGrid(tiles)
+  const delta = COMPASS_DIRECTION_DELTAS[direction]
+  const r = row + delta.dr
+  const c = col + delta.dc
+  if (r < 0 || r >= grid.length || c < 0 || c >= grid[0].length) return -1
+  return grid[r][c]
+}
+
+export function isGroundSeparatorCell(
   tiles: number[][],
   row: number,
   col: number
-): number {
-  return getColumnHeight(tiles, row, col, TILE_GROUND)
+): boolean {
+  const grid = getGroundClassificationGrid(tiles)
+  return grid[row]?.[col] === GROUND_SEPARATOR_VALUE
 }
 
 function selectGroundTopStyleIndex(
@@ -157,87 +210,7 @@ function selectGroundTopStyleIndex(
   return Math.abs(hash) % GROUND_VARIANT_COUNT
 }
 
-// ─── Resolver Functions ──────────────────────────────────────────────
-
-function resolveStepJoinCornerFrame(context: GroundRuleContext): number | null {
-  const { tiles, row, col } = context
-
-  if (!isGroundAt(tiles, row, col)) return null
-  if (isTopSurfaceGroundTile(tiles, row, col)) return null
-
-  const hasGroundAbove = isGroundAt(tiles, row - 1, col)
-  const hasGroundLeft = isGroundAt(tiles, row, col - 1)
-  const hasGroundRight = isGroundAt(tiles, row, col + 1)
-  const topLeftDiagonal = getTileAt(tiles, row - 1, col - 1)
-  const topRightDiagonal = getTileAt(tiles, row - 1, col + 1)
-  const canUseLeftInternalCorner =
-    isOpenInternalCornerDiagonal(topRightDiagonal)
-  const canUseRightInternalCorner =
-    isOpenInternalCornerDiagonal(topLeftDiagonal)
-
-  const isDirtStyle = (context.variantSeed ?? 0) === TOP_STYLE_DIRT_INDEX
-
-  const leftInternalCornerFrame = isDirtStyle
-    ? DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME
-    : GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME
-  const rightInternalCornerFrame = isDirtStyle
-    ? DIRT_INTERNAL_TOP_RIGHT_CORNER_FRAME
-    : GRASS_INTERNAL_TOP_RIGHT_CORNER_FRAME
-
-  if (hasGroundAbove && hasGroundRight && canUseLeftInternalCorner) {
-    return leftInternalCornerFrame
-  }
-  if (hasGroundAbove && hasGroundLeft && canUseRightInternalCorner) {
-    return rightInternalCornerFrame
-  }
-
-  return null
-}
-
-function resolveDeepStructuredRowFrame(
-  context: GroundRuleContext
-): number | null {
-  const { tiles, row, col } = context
-  if (!isGroundAt(tiles, row, col)) return null
-
-  const columnHeight = getGroundColumnHeight(tiles, row, col)
-  if (columnHeight <= 3) return null
-
-  const isInternal = isGroundInternalDebugCell(tiles, row, col)
-  const isAboveGround = isGroundAt(tiles, row - 1, col)
-  const isLeftGround = isGroundAt(tiles, row, col - 1)
-  const isRightGround = isGroundAt(tiles, row, col + 1)
-  const isBelowInternal = isGroundInternalDebugCell(tiles, row + 1, col)
-  const isRightInternal = isGroundInternalDebugCell(tiles, row, col + 1)
-  const isAboveInternal = isGroundInternalDebugCell(tiles, row - 1, col)
-  const isLeftInternal = isGroundInternalDebugCell(tiles, row, col - 1)
-
-  if (
-    !isInternal &&
-    isBelowInternal &&
-    isRightInternal &&
-    isAboveGround &&
-    isLeftGround &&
-    !isAboveInternal &&
-    !isLeftInternal
-  ) {
-    return GROUND_INTERNAL_DIAGONAL_FRAME
-  }
-
-  if (!isInternal) return null
-
-  if (isAboveGround && !isAboveInternal && isBelowInternal && isRightInternal) {
-    return selectVariantFrame(GROUND_INTERNAL_TOP_FRAMES, row, col, 31)
-  }
-  if (isLeftGround && !isLeftInternal) {
-    return selectVariantFrame(GROUND_INTERNAL_LEFT_FRAMES, row, col, 37)
-  }
-  if (isRightGround && !isRightInternal) {
-    return selectVariantFrame(GROUND_INTERNAL_RIGHT_FRAMES, row, col, 41)
-  }
-
-  return null
-}
+// ─── Declarative Rules ───────────────────────────────────────────────
 
 // ─── Rules ───────────────────────────────────────────────────────────
 // Compass tokens: 6 = ground, '!6' = not ground (empty/OOB/other)
@@ -245,42 +218,90 @@ function resolveDeepStructuredRowFrame(
 
 const GROUND_RULES: LayerRule<GroundRuleContext>[] = [
   // ═══ Top surface with ground below ═════════════════════════════════
-  {
-    matches: [{ N: '!6', S: 6, W: '!6', E: '!6' }],
-    variants: [[toFrameIndex(5)], [toFrameIndex(70)]],
-  },
+
+  // Top-left edge cap: ground continues to the right.
   {
     matches: [{ N: '!6', S: 6, W: '!6', E: 6 }],
     variants: [[toFrameIndex(41)], [toFrameIndex(127)]],
   },
+  // Top-center cap: ground on both sides.
   {
     matches: [{ N: '!6', S: 6, W: 6, E: '!6' }],
     variants: [[toFrameIndex(43)], [toFrameIndex(129)]],
   },
+  // Top-right edge cap: ground continues from the left.
   {
     matches: [{ N: '!6', S: 6, W: 6, E: 6 }],
     variants: [[toFrameIndex(42)], [toFrameIndex(128)]],
   },
-
-  // ═══ Step-join internal corners (resolver — diagonal checks) ═══════
-  { resolve: (context) => resolveStepJoinCornerFrame(context) },
-
-  // ═══ Deep structured rows (resolver — internal debug cell checks) ══
-  { resolve: (context) => resolveDeepStructuredRowFrame(context) },
-
-  // ═══ Single-height top — isolated and right (from far-right) ═══════
   {
-    matches: [{ N: '!6', S: '!6', W: '!6', E: '!6' }],
-    variants: [[toFrameIndex(5)], [toFrameIndex(70)]],
+    matches: [{ N: 6, E: 6, NE: [-1, 0, 7] }],
+    variants: [[toFrameIndex(49)], [toFrameIndex(148)]],
   },
+  // Step-join inner corner opening on NW diagonal.
   {
-    matches: [{ N: '!6', S: '!6', W: 6, E: '!6' }],
-    variants: [[toFrameIndex(43)], [toFrameIndex(129)]],
+    matches: [{ N: 6, W: 6, NW: [-1, 0, 7] }],
+    variants: [[toFrameIndex(50)], [toFrameIndex(149)]],
   },
 
-  // ═══ Body / remaining edges ════════════════════════════════════════
-  { matches: [{ E: '!6' }], frames: [GROUND_BODY_RIGHT_FRAME] },
-  { matches: [{ W: '!6' }], frames: [GROUND_BODY_LEFT_FRAME] },
+  // ─── Internal (8) zone boundary rules ────────────────────────────────
+  // With the 1 gap ring in place, no 8-centre cell will ever see a direct
+  // 6 neighbour — the gap ring cells always report 1 instead.
+
+  // Top-left inner corner of the 8 zone: gap ring above and to the left.
+  {
+    matches: [{ C: 8, N: 1, S: 8, W: 1, E: 8 }],
+    frames: [toFrameIndex(142)],
+  },
+  // Top-right inner corner of the 8 zone: gap ring above and to the right.
+  {
+    matches: [{ C: 8, N: 1, S: 8, W: 8, E: 1 }],
+    frames: [toFrameIndex(143)],
+  },
+  // Gap-ring cell on the left edge: 8 to the east, surface ground to all other sides.
+  {
+    matches: [{ C: 1, N: 6, S: 6, W: 6, E: 8 }],
+    frames: [toFrameIndex(142), toFrameIndex(137)],
+  },
+  // Gap-ring cell surrounded by 8 on all cardinal sides: NW is also in gap ring.
+  {
+    matches: [{ C: 1, N: 8, S: 8, W: 8, E: 8, NW: 1 }],
+    frames: [toFrameIndex(137)],
+  },
+  {
+    matches: [{ N: '0', S: 6, W: 0, E: 6 }],
+    variants: [[toFrameIndex(129)]],
+  },
+  // Gap-ring cell surrounded by 8 on all cardinal sides: NE is also in gap ring.
+  {
+    matches: [{ N: 8, W: 8, E: 8, S: 8, C: 1, NE: 1 }],
+    variants: [[toFrameIndex(139)]],
+  },
+  // Left-edge ground column (E is empty/air or internal gap ring).
+  {
+    matches: [
+      { E: 0, W: 6, S: 6, N: 6 },
+      { E: 0, W: 6, S: -1, N: 6 },
+      { E: 1, W: 6, S: 1, N: 8 },
+      { E: 1, W: 6, S: 8, N: 8 },
+    ],
+    frames: [toFrameIndex(134)],
+  },
+  // Right-edge ground column (W is empty/air or internal gap ring).
+  {
+    matches: [
+      { E: 6, W: 0, S: 6, N: 6 },
+      { E: 6, W: 0, S: -1, N: 6 },
+      { E: 6, W: 1, S: 1, N: 8 },
+      { E: 6, W: 1, S: 8, N: 8 },
+    ],
+    frames: [toFrameIndex(132)],
+  },
+  // Top gap-ring row: 8 to east/west/south, gap ring (1) to north.
+  {
+    matches: [{ C: 1, E: 8, W: 8, S: 8, N: 1 }],
+    frames: [toFrameIndex(125)],
+  },
 ]
 
 // ─── Frame resolution ────────────────────────────────────────────────
@@ -317,25 +338,8 @@ export function resolveGroundTileFrame(
 
   return resolveLayerRuleFrame(GROUND_RULES, context, {
     unresolvedFrame: -1,
+    getNeighborValue: getGroundRuleNeighborValue,
   })
-}
-
-function collectRuleFrames(
-  rules: ReadonlyArray<LayerRule<GroundRuleContext>>
-): number[] {
-  const frames = new Set<number>()
-  for (const rule of rules) {
-    const decl = rule as DeclarativeRule
-    if (decl.frames) {
-      for (const f of decl.frames) frames.add(f)
-    }
-    if (decl.variants) {
-      for (const variant of decl.variants) {
-        for (const f of variant) frames.add(f)
-      }
-    }
-  }
-  return Array.from(frames)
 }
 
 export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
@@ -343,16 +347,19 @@ export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
 
   return Array.from(
     new Set([
-      ...collectRuleFrames(GROUND_RULES),
-      ...GROUND_INTERNAL_LEFT_FRAMES,
-      ...GROUND_INTERNAL_TOP_FRAMES,
-      ...GROUND_INTERNAL_RIGHT_FRAMES,
-      GROUND_INTERNAL_DIAGONAL_FRAME,
-      GROUND_BODY_MIDDLE_FRAME,
-      DIRT_INTERNAL_TOP_LEFT_CORNER_FRAME,
-      DIRT_INTERNAL_TOP_RIGHT_CORNER_FRAME,
-      GRASS_INTERNAL_TOP_LEFT_CORNER_FRAME,
-      GRASS_INTERNAL_TOP_RIGHT_CORNER_FRAME,
+      ...collectDeclarativeRuleFrames(GROUND_RULES),
+      toFrameIndex(134),
+      toFrameIndex(136),
+      toFrameIndex(125),
+      toFrameIndex(126),
+      toFrameIndex(146),
+      toFrameIndex(140),
+      toFrameIndex(163),
+      toFrameIndex(133),
+      toFrameIndex(148),
+      toFrameIndex(149),
+      toFrameIndex(49),
+      toFrameIndex(50),
       ...collectAutotileFrames(GROUND_AUTOTILE),
     ])
   )

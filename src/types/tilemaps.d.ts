@@ -31,6 +31,9 @@ export interface Cell extends GridPosition {
 export interface Chunk {
   tiles: Tile[][]
   supportTiles: Tile[][]
+  collisionTilemapData?: number[][]
+  supportVisualTilemapData?: number[][]
+  supportForegroundTilemapData?: number[][]
   rightColumn: Tile[]
   layerRightColumns?: LayerBoundaryColumns
   groundTopStyleByColumn?: number[]

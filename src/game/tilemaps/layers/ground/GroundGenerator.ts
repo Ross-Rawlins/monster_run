@@ -1,4 +1,4 @@
-import { GROUND_GENERATION_CONSTRAINTS } from './GroundRules'
+import { GROUND_GENERATION_CONSTRAINTS } from './GroundConfig'
 import { Tile } from '../../TileTypes'
 import { randomInt } from '../../generators/GenerationMath'
 import type { GeneratorOptions } from '../../contracts/GeneratorOptions'

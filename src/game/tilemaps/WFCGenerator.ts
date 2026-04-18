@@ -1,5 +1,10 @@
 import type { Chunk, LayerBoundaryColumns } from '../../types/tilemaps'
-import { GRID_HEIGHT, GRID_WIDTH, Tile } from './TileTypes'
+import {
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  Tile,
+  getRenderFrameForTileAt,
+} from './TileTypes'
 import { GroundGenerator } from './layers/ground/GroundGenerator'
 import { PlatformGenerator } from './layers/platforms/PlatformGenerator'
 import { CaveGenerator } from './layers/caves/CaveGenerator'
@@ -96,11 +101,21 @@ export class WFCGenerator {
       }
     }
 
+    const groundTopStyleByColumn = groundGenerator.getTopStyleByColumn()
+    const collisionTilemapData = tiles.map((row, rowIndex) =>
+      row.map((_, colIndex) =>
+        getRenderFrameForTileAt(tiles, rowIndex, colIndex, {
+          groundStyleByColumn: groundTopStyleByColumn,
+        })
+      )
+    )
+
     return {
       tiles,
       supportTiles: caveLayer,
+      collisionTilemapData,
       rightColumn: tiles.map((row) => row[this.width - 1]),
-      groundTopStyleByColumn: groundGenerator.getTopStyleByColumn(),
+      groundTopStyleByColumn,
       rightGroundOpenSectionStyleIndex:
         groundGenerator.getRightOpenSectionStyleIndex(),
       layerRightColumns: {

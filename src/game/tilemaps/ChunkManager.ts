@@ -32,6 +32,9 @@ interface ChunkManagerDiagnostics {
   lastGeneratedChunkIndex: number | null
   lastAttemptCount: number
   lastWorkerError: string | null
+  lastGenerationDurationMs: number
+  averageGenerationDurationMs: number
+  generationSampleCount: number
 }
 
 type ChunkReadyCallback = (chunk: Chunk, lifecycle: ChunkLifecycle) => void
@@ -48,13 +51,18 @@ export class ChunkManager {
   private lastGeneratedChunkIndex: number | null = null
   private lastAttemptCount = 0
   private lastWorkerError: string | null = null
+  private lastGenerationDurationMs = 0
+  private averageGenerationDurationMs = 0
+  private generationSampleCount = 0
   private pendingWorkerChunkIndex: number | null = null
+  private pendingWorkerStartAtMs: number | null = null
   private workerStallTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly onChunkReady: ChunkReadyCallback) {
     this.worker = this.createWorker()
 
-    this.pendingRequests = 5
+    // Avoid large startup bursts that block the main thread when attaching chunks.
+    this.pendingRequests = 2
     this.pumpQueue()
   }
 
@@ -136,6 +144,9 @@ export class ChunkManager {
       lastGeneratedChunkIndex: this.lastGeneratedChunkIndex,
       lastAttemptCount: this.lastAttemptCount,
       lastWorkerError: this.lastWorkerError,
+      lastGenerationDurationMs: this.lastGenerationDurationMs,
+      averageGenerationDurationMs: this.averageGenerationDurationMs,
+      generationSampleCount: this.generationSampleCount,
     }
   }
 
@@ -147,6 +158,7 @@ export class ChunkManager {
     this.generating = true
     this.pendingRequests -= 1
     this.pendingWorkerChunkIndex = this.nextChunkIndex
+    this.pendingWorkerStartAtMs = performance.now()
 
     this.clearWorkerStallTimer()
     this.workerStallTimer = setTimeout(() => {
@@ -178,8 +190,20 @@ export class ChunkManager {
 
     this.generating = false
     this.pendingWorkerChunkIndex = null
+    const startedAt = this.pendingWorkerStartAtMs
+    this.pendingWorkerStartAtMs = null
     this.clearWorkerStallTimer()
     this.lastAttemptCount = attempts
+
+    if (startedAt !== null) {
+      const elapsedMs = performance.now() - startedAt
+      this.lastGenerationDurationMs = elapsedMs
+      this.generationSampleCount += 1
+      const priorTotal =
+        this.averageGenerationDurationMs * (this.generationSampleCount - 1)
+      this.averageGenerationDurationMs =
+        (priorTotal + elapsedMs) / this.generationSampleCount
+    }
 
     if (!chunk) {
       this.lastWorkerError =
@@ -219,6 +243,7 @@ export class ChunkManager {
     const stalledChunkIndex = this.pendingWorkerChunkIndex
     this.generating = false
     this.pendingWorkerChunkIndex = null
+    this.pendingWorkerStartAtMs = null
     this.lastWorkerError = `Worker stalled while generating chunk ${stalledChunkIndex}; restarting worker and retrying.`
     this.lastAttemptCount = 0
     this.clearWorkerStallTimer()

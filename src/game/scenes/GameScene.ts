@@ -12,6 +12,7 @@ import {
 import {
   GROUND_INTERNAL_DEBUG_OFFSET_TILES,
   isGroundInternalDebugCell,
+  isGroundSeparatorCell,
 } from '../tilemaps/layers/ground/GroundRules'
 import {
   COLLIDABLE_TILES,
@@ -31,15 +32,18 @@ const PLAYER_HEIGHT = 24
 const PLAYER_RUN_SPEED = 180
 const PLAYER_JUMP_VELOCITY = -360
 const CHUNK_TRIGGER_AHEAD_RATIO = 0.7
-const CHUNK_PREFETCH_AHEAD = 4
+const CHUNK_PREFETCH_AHEAD = 2
 const CHUNK_CLEANUP_BEHIND = 1
 const WORLD_PADDING_CHUNKS = 2
 const TILESET_KEY = 'runner-tileset'
 const RUNTIME_HUD_REFRESH_MS = 100
 const DEBUG_GRID_ROWS = 20
 const DEBUG_GRID_COLUMNS = 60
+const SHOW_EMPTY_DEBUG_LABELS = false
+const SHOW_DEBUG_LABELS = false
 const SHOW_PARALLAX_IMAGES = true
 const SHOW_TILE_IMAGES = true
+const SHOW_SUPPORT_BACKDROP_IMAGES = false
 const SHOW_SUPPORT_FOREGROUND_CAPS = false
 const CONTINUOUS_SCROLL_TEST_MODE = false
 const MANUAL_CAMERA_SCROLL_MODE = true
@@ -47,6 +51,7 @@ const FALL_RECOVERY_BUFFER_TILES = 4
 const CONTINUOUS_SCROLL_SPEED_PX = 180
 const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
 const INTERNAL_DEBUG_TILE_VALUE = 8
+const SEPARATOR_DEBUG_TILE_VALUE = 1
 
 interface TileStats {
   empty: number
@@ -58,6 +63,12 @@ interface TileStats {
 type RunnerBody = Phaser.Physics.Arcade.Body
 type RunnerSprite = Phaser.GameObjects.Rectangle & { body: RunnerBody }
 
+interface ChunkDebugOverlay {
+  gridGraphics: Phaser.GameObjects.Graphics
+  fillGraphics: Phaser.GameObjects.Graphics
+  labels: Phaser.GameObjects.Text[]
+}
+
 export default class GameScene extends Phaser.Scene {
   private chunkManager!: ChunkManager
   private player!: RunnerSprite
@@ -66,9 +77,7 @@ export default class GameScene extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key
   private parallaxManager: ParallaxBackgroundManager | null = null
   private debugKey!: Phaser.Input.Keyboard.Key
-  private debugOverlayGraphics: Phaser.GameObjects.Graphics | null = null
-  private debugCellFillGraphics: Phaser.GameObjects.Graphics | null = null
-  private debugTileValueTexts: Phaser.GameObjects.Text[] = []
+  private readonly debugChunkOverlays = new Map<number, ChunkDebugOverlay>()
   private runtimeHudText: Phaser.GameObjects.Text | null = null
   private debugEnabled = false
   private runtimeTileSizePx = TILE_SIZE_PX
@@ -81,7 +90,13 @@ export default class GameScene extends Phaser.Scene {
   private nextChunkTriggerX = GRID_WIDTH * TILE_SIZE_PX * 0.5
   private maxWorldRightEdge = GRID_WIDTH * TILE_SIZE_PX
   private hasPlacedSpawn = false
+  private cachedCollisionTileIndices: number[] | null = null
+  private readonly chunkTileStatsCache: WeakMap<Chunk, TileStats> =
+    new WeakMap()
   private lastRuntimeHudUpdateMs = 0
+  private lastAttachDurationMs = 0
+  private averageAttachDurationMs = 0
+  private attachedChunkCount = 0
 
   constructor() {
     super('GAME_SCENE')
@@ -205,6 +220,7 @@ export default class GameScene extends Phaser.Scene {
 
   public update(): void {
     this.updateRuntimeHud()
+    this.handleDebugToggle()
 
     if (!this.hasPlacedSpawn) {
       return
@@ -221,7 +237,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.updateChunkStreaming()
-    this.handleDebugToggle()
+    this.syncDebugOverlayWithActiveChunks()
 
     if (
       !MANUAL_CAMERA_SCROLL_MODE &&
@@ -383,31 +399,27 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private attachChunk(chunk: Chunk, lifecycle: ChunkLifecycle): void {
+    const attachStart = performance.now()
     const chunkGroundStyleByColumn = chunk.groundTopStyleByColumn
-    const collisionTilemapData = chunk.tiles.map((row, rowIndex) =>
-      row.map((_, colIndex) =>
-        getRenderFrameForTileAt(chunk.tiles, rowIndex, colIndex, {
-          groundStyleByColumn: chunkGroundStyleByColumn,
-        })
-      )
-    )
-
-    const supportVisualTilemapData = chunk.supportTiles.map((row, rowIndex) =>
-      row.map((tile, colIndex) =>
-        tile === Tile.CAVE
-          ? getRenderFrameForTileAt(chunk.supportTiles, rowIndex, colIndex)
-          : TILE_RENDER_INDEX[Tile.EMPTY]
-      )
-    )
-
-    const supportForegroundTilemapData = chunk.supportTiles.map(
-      (row, rowIndex) =>
-        row.map((tile, colIndex) =>
-          this.shouldRenderSupportForegroundCap(chunk, rowIndex, colIndex, tile)
-            ? getRenderFrameForTileAt(chunk.supportTiles, rowIndex, colIndex)
-            : TILE_RENDER_INDEX[Tile.EMPTY]
+    const collisionTilemapData =
+      chunk.collisionTilemapData ??
+      chunk.tiles.map((row, rowIndex) =>
+        row.map((_, colIndex) =>
+          getRenderFrameForTileAt(chunk.tiles, rowIndex, colIndex, {
+            groundStyleByColumn: chunkGroundStyleByColumn,
+          })
         )
-    )
+      )
+
+    const supportVisualTilemapData = SHOW_SUPPORT_BACKDROP_IMAGES
+      ? (chunk.supportVisualTilemapData ??
+        this.buildSupportVisualTilemapDataFallback(chunk))
+      : null
+
+    const supportForegroundTilemapData = SHOW_SUPPORT_FOREGROUND_CAPS
+      ? (chunk.supportForegroundTilemapData ??
+        this.buildSupportForegroundTilemapDataFallback(chunk))
+      : null
 
     const tilemap = this.make.tilemap({
       data: collisionTilemapData,
@@ -431,41 +443,49 @@ export default class GameScene extends Phaser.Scene {
       )
     }
 
-    const supportVisualTilemap = this.make.tilemap({
-      data: supportVisualTilemapData,
-      tileWidth: TILE_SIZE_PX,
-      tileHeight: TILE_SIZE_PX,
-    })
-    const supportVisualTileset = supportVisualTilemap.addTilesetImage(
-      TILESET_KEY,
-      TILESET_KEY,
-      TILE_SIZE_PX,
-      TILE_SIZE_PX,
-      0,
-      0
-    )
+    const supportVisualTilemap = supportVisualTilemapData
+      ? this.make.tilemap({
+          data: supportVisualTilemapData,
+          tileWidth: TILE_SIZE_PX,
+          tileHeight: TILE_SIZE_PX,
+        })
+      : null
+    const supportVisualTileset = supportVisualTilemap
+      ? supportVisualTilemap.addTilesetImage(
+          TILESET_KEY,
+          TILESET_KEY,
+          TILE_SIZE_PX,
+          TILE_SIZE_PX,
+          0,
+          0
+        )
+      : null
 
-    if (!supportVisualTileset) {
+    if (supportVisualTilemap && !supportVisualTileset) {
       throw new Error(
         `Unable to create support visual tileset using texture key ${TILESET_KEY}`
       )
     }
 
-    const supportForegroundTilemap = this.make.tilemap({
-      data: supportForegroundTilemapData,
-      tileWidth: TILE_SIZE_PX,
-      tileHeight: TILE_SIZE_PX,
-    })
-    const supportForegroundTileset = supportForegroundTilemap.addTilesetImage(
-      TILESET_KEY,
-      TILESET_KEY,
-      TILE_SIZE_PX,
-      TILE_SIZE_PX,
-      0,
-      0
-    )
+    const supportForegroundTilemap = supportForegroundTilemapData
+      ? this.make.tilemap({
+          data: supportForegroundTilemapData,
+          tileWidth: TILE_SIZE_PX,
+          tileHeight: TILE_SIZE_PX,
+        })
+      : null
+    const supportForegroundTileset = supportForegroundTilemap
+      ? supportForegroundTilemap.addTilesetImage(
+          TILESET_KEY,
+          TILESET_KEY,
+          TILE_SIZE_PX,
+          TILE_SIZE_PX,
+          0,
+          0
+        )
+      : null
 
-    if (!supportForegroundTileset) {
+    if (supportForegroundTilemap && !supportForegroundTileset) {
       throw new Error(
         `Unable to create support foreground tileset using texture key ${TILESET_KEY}`
       )
@@ -484,19 +504,25 @@ export default class GameScene extends Phaser.Scene {
       )
     }
 
-    const supportVisualLayer = supportVisualTilemap.createLayer(
-      0,
-      supportVisualTileset,
-      lifecycle.chunkIndex * this.runtimeChunkWidthPx,
-      this.chunkOffsetY
-    )
+    const supportVisualLayer =
+      supportVisualTilemap && supportVisualTileset
+        ? supportVisualTilemap.createLayer(
+            0,
+            supportVisualTileset,
+            lifecycle.chunkIndex * this.runtimeChunkWidthPx,
+            this.chunkOffsetY
+          )
+        : null
 
-    const supportForegroundLayer = supportForegroundTilemap.createLayer(
-      0,
-      supportForegroundTileset,
-      lifecycle.chunkIndex * this.runtimeChunkWidthPx,
-      this.chunkOffsetY
-    )
+    const supportForegroundLayer =
+      supportForegroundTilemap && supportForegroundTileset
+        ? supportForegroundTilemap.createLayer(
+            0,
+            supportForegroundTileset,
+            lifecycle.chunkIndex * this.runtimeChunkWidthPx,
+            this.chunkOffsetY
+          )
+        : null
 
     layer.setDepth(1)
     layer.setScale(this.runtimeTileScale)
@@ -525,9 +551,9 @@ export default class GameScene extends Phaser.Scene {
       chunk,
       tilemap,
       layer,
-      visualTilemap: supportVisualTilemap,
+      visualTilemap: supportVisualTilemap ?? undefined,
       visualLayer: supportVisualLayer ?? undefined,
-      foregroundVisualTilemap: supportForegroundTilemap,
+      foregroundVisualTilemap: supportForegroundTilemap ?? undefined,
       foregroundVisualLayer: supportForegroundLayer ?? undefined,
       collider,
       lifecycle,
@@ -538,7 +564,7 @@ export default class GameScene extends Phaser.Scene {
     this.refreshSeamFrames(lifecycle.chunkIndex)
     this.updateWorldBounds(chunkRightEdgePx)
     if (this.debugEnabled) {
-      this.redrawDebugOverlay()
+      this.drawDebugChunkOverlayForChunk(activeChunk)
     }
 
     if (!this.hasPlacedSpawn) {
@@ -550,6 +576,14 @@ export default class GameScene extends Phaser.Scene {
         `Chunk ${lifecycle.chunkIndex} attached; cleanup should keep active chunks near ${MAX_ACTIVE_CHUNKS}`
       )
     }
+
+    const attachDurationMs = performance.now() - attachStart
+    this.lastAttachDurationMs = attachDurationMs
+    this.attachedChunkCount += 1
+    const priorTotal =
+      this.averageAttachDurationMs * (this.attachedChunkCount - 1)
+    this.averageAttachDurationMs =
+      (priorTotal + attachDurationMs) / this.attachedChunkCount
   }
 
   private shouldRenderSupportForegroundCap(
@@ -572,6 +606,51 @@ export default class GameScene extends Phaser.Scene {
     }
 
     return chunk.tiles[row - 1][col] === Tile.EMPTY
+  }
+
+  private buildSupportForegroundTilemapDataFallback(chunk: Chunk): number[][] {
+    return chunk.supportTiles.map((row, rowIndex) =>
+      row.map((tile, colIndex) => {
+        if (
+          !this.shouldRenderSupportForegroundCap(
+            chunk,
+            rowIndex,
+            colIndex,
+            tile
+          )
+        ) {
+          return TILE_RENDER_INDEX[Tile.EMPTY]
+        }
+
+        return getRenderFrameForTileAt(chunk.supportTiles, rowIndex, colIndex)
+      })
+    )
+  }
+
+  private buildSupportVisualTilemapDataFallback(chunk: Chunk): number[][] {
+    const supportBackdropTiles = chunk.supportTiles.map((row, rowIndex) =>
+      row.map((supportTile, colIndex) => {
+        if (supportTile === Tile.CAVE) return Tile.CAVE
+        return chunk.tiles[rowIndex][colIndex] === Tile.EMPTY
+          ? Tile.EMPTY
+          : Tile.CAVE
+      })
+    )
+
+    const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
+    const caveFrame = TILE_RENDER_INDEX[Tile.CAVE]
+
+    return supportBackdropTiles.map((row, rowIndex) =>
+      row.map((tile, colIndex) => {
+        if (tile !== Tile.CAVE) return emptyFrame
+        const resolved = getRenderFrameForTileAt(
+          supportBackdropTiles,
+          rowIndex,
+          colIndex
+        )
+        return resolved === emptyFrame ? caveFrame : resolved
+      })
+    )
   }
 
   private refreshSeamFrames(chunkIndex: number): void {
@@ -727,6 +806,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private getCollisionTileIndices(): number[] {
+    if (this.cachedCollisionTileIndices) {
+      return this.cachedCollisionTileIndices
+    }
+
     const collisionTileIndices = new Set<number>()
 
     for (const tile of COLLIDABLE_TILES) {
@@ -737,115 +820,163 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    return Array.from(collisionTileIndices)
+    this.cachedCollisionTileIndices = Array.from(collisionTileIndices)
+    return this.cachedCollisionTileIndices
   }
 
   private redrawDebugOverlay(): void {
     this.clearDebugOverlay()
-    this.drawDebugChunkOverlay()
+    this.syncDebugOverlayWithActiveChunks()
   }
 
   /**
    * Draw a world-space square grid aligned to each active chunk (20x60).
    * Because this uses world coordinates, it follows generated elements while scrolling.
    */
-  private drawDebugChunkOverlay(): void {
+  private syncDebugOverlayWithActiveChunks(): void {
     if (!this.debugEnabled) {
+      return
+    }
+
+    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
+    const activeChunkIndices = new Set<number>()
+
+    for (const activeChunk of activeChunks) {
+      const chunkIndex = activeChunk.lifecycle.chunkIndex
+      activeChunkIndices.add(chunkIndex)
+
+      if (this.debugChunkOverlays.has(chunkIndex)) {
+        continue
+      }
+
+      this.drawDebugChunkOverlayForChunk(activeChunk)
+    }
+
+    for (const [chunkIndex] of this.debugChunkOverlays) {
+      if (activeChunkIndices.has(chunkIndex)) {
+        continue
+      }
+
+      this.destroyDebugChunkOverlay(chunkIndex)
+    }
+  }
+
+  private drawDebugChunkOverlayForChunk(activeChunk: ActiveChunk): void {
+    const chunkIndex = activeChunk.lifecycle.chunkIndex
+    if (this.debugChunkOverlays.has(chunkIndex)) {
       return
     }
 
     const cellSize = this.runtimeTileSizePx
     const gridWidth = cellSize * DEBUG_GRID_COLUMNS
     const gridHeight = cellSize * DEBUG_GRID_ROWS
+    const fontSizePx = Math.max(
+      DEBUG_GRID_STYLE.labelMinFontSizePx,
+      Math.round(cellSize * DEBUG_GRID_STYLE.labelFontSizeFactor)
+    )
+    const xOffset = chunkIndex * this.runtimeChunkWidthPx
+    const yOffset = this.chunkOffsetY
 
-    this.debugOverlayGraphics = this.add.graphics().setDepth(100)
-    this.debugCellFillGraphics = this.add.graphics().setDepth(0.5)
+    const gridGraphics = this.add.graphics().setDepth(100)
+    const fillGraphics = this.add.graphics().setDepth(0.5)
+    const labels: Phaser.GameObjects.Text[] = []
 
-    this.debugOverlayGraphics.lineStyle(
+    gridGraphics.lineStyle(
       1,
       DEBUG_GRID_STYLE.lineColor,
       DEBUG_GRID_STYLE.lineAlpha
     )
 
-    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
-    if (activeChunks.length === 0) {
+    this.drawChunkGridLines(
+      gridGraphics,
+      xOffset,
+      yOffset,
+      cellSize,
+      gridWidth,
+      gridHeight
+    )
+    this.drawChunkTileValues(
+      activeChunk,
+      fillGraphics,
+      labels,
+      xOffset,
+      yOffset,
+      cellSize,
+      fontSizePx
+    )
+
+    this.debugChunkOverlays.set(chunkIndex, {
+      gridGraphics,
+      fillGraphics,
+      labels,
+    })
+  }
+
+  private destroyDebugChunkOverlay(chunkIndex: number): void {
+    const overlay = this.debugChunkOverlays.get(chunkIndex)
+    if (!overlay) {
       return
     }
 
-    const fontSizePx = Math.max(
-      DEBUG_GRID_STYLE.labelMinFontSizePx,
-      Math.round(cellSize * DEBUG_GRID_STYLE.labelFontSizeFactor)
-    )
-
-    for (const activeChunk of activeChunks) {
-      const xOffset =
-        activeChunk.lifecycle.chunkIndex * this.runtimeChunkWidthPx
-      const yOffset = this.chunkOffsetY
-
-      this.drawChunkGridLines(xOffset, yOffset, cellSize, gridWidth, gridHeight)
-      this.drawChunkTileValues(
-        activeChunk.chunk,
-        xOffset,
-        yOffset,
-        cellSize,
-        fontSizePx
-      )
+    overlay.gridGraphics.destroy()
+    overlay.fillGraphics.destroy()
+    for (const label of overlay.labels) {
+      label.destroy()
     }
+
+    this.debugChunkOverlays.delete(chunkIndex)
   }
 
   private drawChunkGridLines(
+    gridGraphics: Phaser.GameObjects.Graphics,
     xOffset: number,
     yOffset: number,
     cellSize: number,
     gridWidth: number,
     gridHeight: number
   ): void {
-    if (!this.debugOverlayGraphics) {
-      return
-    }
-
     for (let row = 0; row <= DEBUG_GRID_ROWS; row += 1) {
       const y = Math.round(yOffset + row * cellSize) + 0.5
-      this.debugOverlayGraphics.beginPath()
-      this.debugOverlayGraphics.moveTo(xOffset + 0.5, y)
-      this.debugOverlayGraphics.lineTo(xOffset + gridWidth + 0.5, y)
-      this.debugOverlayGraphics.strokePath()
+      gridGraphics.beginPath()
+      gridGraphics.moveTo(xOffset + 0.5, y)
+      gridGraphics.lineTo(xOffset + gridWidth + 0.5, y)
+      gridGraphics.strokePath()
     }
 
     for (let col = 0; col <= DEBUG_GRID_COLUMNS; col += 1) {
       const x = Math.round(xOffset + col * cellSize) + 0.5
-      this.debugOverlayGraphics.beginPath()
-      this.debugOverlayGraphics.moveTo(x, yOffset + 0.5)
-      this.debugOverlayGraphics.lineTo(x, yOffset + gridHeight + 0.5)
-      this.debugOverlayGraphics.strokePath()
+      gridGraphics.beginPath()
+      gridGraphics.moveTo(x, yOffset + 0.5)
+      gridGraphics.lineTo(x, yOffset + gridHeight + 0.5)
+      gridGraphics.strokePath()
     }
   }
 
   private drawChunkTileValues(
-    chunk: Chunk,
+    activeChunk: ActiveChunk,
+    fillGraphics: Phaser.GameObjects.Graphics,
+    labels: Phaser.GameObjects.Text[],
     xOffset: number,
     yOffset: number,
     cellSize: number,
     fontSizePx: number
   ): void {
-    if (!this.debugOverlayGraphics) {
-      return
-    }
+    const chunk = activeChunk.chunk
 
     for (let row = 0; row < GRID_HEIGHT; row += 1) {
       for (let col = 0; col < GRID_WIDTH; col += 1) {
         const tile = chunk.tiles[row][col]
-        const resolvedFrame = getRenderFrameForTileAt(chunk.tiles, row, col)
+        const resolvedFrame =
+          activeChunk.layer.getTileAt(col, row, true)?.index ??
+          TILE_RENDER_INDEX[Tile.EMPTY]
         const isUnresolvedTile =
           tile !== Tile.EMPTY && resolvedFrame === TILE_RENDER_INDEX[Tile.EMPTY]
 
         // Support tiles that have no authored rule also need the blue debug cell.
         const supportTile = chunk.supportTiles[row][col]
-        const supportResolved = getRenderFrameForTileAt(
-          chunk.supportTiles,
-          row,
-          col
-        )
+        const supportResolved =
+          activeChunk.visualLayer?.getTileAt(col, row, true)?.index ??
+          TILE_RENDER_INDEX[Tile.EMPTY]
         const isUnresolvedSupport =
           supportTile === Tile.CAVE &&
           supportResolved === TILE_RENDER_INDEX[Tile.EMPTY]
@@ -860,13 +991,19 @@ export default class GameScene extends Phaser.Scene {
           col,
           GROUND_INTERNAL_DEBUG_OFFSET_TILES
         )
+        const isSeparatorDebugCell =
+          !isInternalDebugCell &&
+          tile === Tile.GROUND &&
+          isGroundSeparatorCell(chunk.tiles, row, col)
         const labelText = this.getDebugLabelText(
           effectiveTile,
           effectiveUnresolved,
-          isInternalDebugCell
+          isInternalDebugCell,
+          isSeparatorDebugCell
         )
 
         this.drawDebugCellFill(
+          fillGraphics,
           effectiveTile,
           effectiveUnresolved,
           isInternalDebugCell,
@@ -875,23 +1012,25 @@ export default class GameScene extends Phaser.Scene {
           cellSize
         )
 
-        const label = this.add
-          .text(
-            xOffset + col * cellSize + cellSize * 0.5,
-            yOffset + row * cellSize + cellSize * 0.5,
-            labelText,
-            {
-              fontSize: `${fontSizePx}px`,
-              color: DEBUG_GRID_STYLE.labelColor,
-              align: 'center',
-              resolution: 2,
-            }
-          )
-          .setDepth(101)
+        if (SHOW_DEBUG_LABELS && labelText !== '') {
+          const label = this.add
+            .text(
+              xOffset + col * cellSize + cellSize * 0.5,
+              yOffset + row * cellSize + cellSize * 0.5,
+              labelText,
+              {
+                fontSize: `${fontSizePx}px`,
+                color: DEBUG_GRID_STYLE.labelColor,
+                align: 'center',
+                resolution: 2,
+              }
+            )
+            .setDepth(101)
 
-        label.setOrigin(0.5, 0.5)
-        label.setAlpha(DEBUG_GRID_STYLE.labelAlpha)
-        this.debugTileValueTexts.push(label)
+          label.setOrigin(0.5, 0.5)
+          label.setAlpha(DEBUG_GRID_STYLE.labelAlpha)
+          labels.push(label)
+        }
       }
     }
   }
@@ -899,20 +1038,26 @@ export default class GameScene extends Phaser.Scene {
   private getDebugLabelText(
     tile: Tile,
     isUnresolvedTile: boolean,
-    isInternalDebugCell: boolean
+    isInternalDebugCell: boolean,
+    isSeparatorDebugCell: boolean
   ): string {
     if (isInternalDebugCell) {
       return String(INTERNAL_DEBUG_TILE_VALUE)
     }
 
+    if (isSeparatorDebugCell) {
+      return String(SEPARATOR_DEBUG_TILE_VALUE)
+    }
+
     if (tile === Tile.EMPTY) {
-      return '-1'
+      return SHOW_EMPTY_DEBUG_LABELS ? '-1' : ''
     }
 
     return isUnresolvedTile ? String(tile) : ''
   }
 
   private drawDebugCellFill(
+    fillGraphics: Phaser.GameObjects.Graphics,
     tile: Tile,
     isUnresolvedTile: boolean,
     isInternalDebugCell: boolean,
@@ -922,6 +1067,7 @@ export default class GameScene extends Phaser.Scene {
   ): void {
     if (isInternalDebugCell) {
       this.fillDebugCell(
+        fillGraphics,
         DEBUG_GRID_STYLE.internalCellColor,
         DEBUG_GRID_STYLE.internalCellAlpha,
         x,
@@ -937,6 +1083,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (tile === Tile.GROUND) {
       this.fillDebugCell(
+        fillGraphics,
         DEBUG_GRID_STYLE.groundCellColor,
         DEBUG_GRID_STYLE.groundCellAlpha,
         x,
@@ -948,6 +1095,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (tile === Tile.PLATFORM) {
       this.fillDebugCell(
+        fillGraphics,
         DEBUG_GRID_STYLE.platformCellColor,
         DEBUG_GRID_STYLE.platformCellAlpha,
         x,
@@ -959,6 +1107,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (tile === Tile.CAVE) {
       this.fillDebugCell(
+        fillGraphics,
         DEBUG_GRID_STYLE.supportCellColor,
         DEBUG_GRID_STYLE.supportCellAlpha,
         x,
@@ -969,30 +1118,22 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private fillDebugCell(
+    fillGraphics: Phaser.GameObjects.Graphics,
     color: number,
     alpha: number,
     x: number,
     y: number,
     cellSize: number
   ): void {
-    if (!this.debugCellFillGraphics) {
-      return
-    }
-
-    this.debugCellFillGraphics.fillStyle(color, alpha)
-    this.debugCellFillGraphics.fillRect(x, y, cellSize, cellSize)
+    fillGraphics.fillStyle(color, alpha)
+    fillGraphics.fillRect(x, y, cellSize, cellSize)
   }
 
   /** Remove all debug graphics. */
   private clearDebugOverlay(): void {
-    this.debugOverlayGraphics?.destroy()
-    this.debugOverlayGraphics = null
-    this.debugCellFillGraphics?.destroy()
-    this.debugCellFillGraphics = null
-    this.debugTileValueTexts.forEach((text) => {
-      text.destroy()
-    })
-    this.debugTileValueTexts = []
+    for (const [chunkIndex] of this.debugChunkOverlays) {
+      this.destroyDebugChunkOverlay(chunkIndex)
+    }
   }
 
   /**
@@ -1045,25 +1186,34 @@ export default class GameScene extends Phaser.Scene {
     }
 
     for (const activeChunk of chunks) {
-      for (const row of activeChunk.chunk.tiles) {
-        for (const tile of row) {
-          if (tile === Tile.EMPTY) {
-            stats.empty += 1
-          } else if (tile === Tile.GROUND) {
-            stats.ground += 1
-          } else if (tile === Tile.PLATFORM) {
-            stats.platform += 1
+      let cached = this.chunkTileStatsCache?.get(activeChunk.chunk)
+      if (!cached) {
+        cached = { empty: 0, ground: 0, platform: 0, support: 0 }
+        for (const row of activeChunk.chunk.tiles) {
+          for (const tile of row) {
+            if (tile === Tile.EMPTY) {
+              cached.empty += 1
+            } else if (tile === Tile.GROUND) {
+              cached.ground += 1
+            } else if (tile === Tile.PLATFORM) {
+              cached.platform += 1
+            }
           }
         }
+        for (const row of activeChunk.chunk.supportTiles) {
+          for (const tile of row) {
+            if (tile === Tile.CAVE) {
+              cached.support += 1
+            }
+          }
+        }
+        this.chunkTileStatsCache?.set(activeChunk.chunk, cached)
       }
 
-      for (const row of activeChunk.chunk.supportTiles) {
-        for (const tile of row) {
-          if (tile === Tile.CAVE) {
-            stats.support += 1
-          }
-        }
-      }
+      stats.empty += cached.empty
+      stats.ground += cached.ground
+      stats.platform += cached.platform
+      stats.support += cached.support
     }
 
     return stats
@@ -1095,6 +1245,8 @@ export default class GameScene extends Phaser.Scene {
       `tileStats -1=${tileStats.empty} 5=${tileStats.platform} 6=${tileStats.ground} 7=${tileStats.support}`,
       `worker generating=${diagnostics.generating ? 'yes' : 'no'} pending=${diagnostics.pendingRequests} next=${diagnostics.nextChunkIndex}`,
       `worker lastChunk=${diagnostics.lastGeneratedChunkIndex ?? '-'} attempts=${diagnostics.lastAttemptCount} error=${diagnostics.lastWorkerError ?? 'none'}`,
+      `worker gen last=${diagnostics.lastGenerationDurationMs.toFixed(1)}ms avg=${diagnostics.averageGenerationDurationMs.toFixed(1)}ms count=${diagnostics.generationSampleCount}`,
+      `attach last=${this.lastAttachDurationMs.toFixed(1)}ms avg=${this.averageAttachDurationMs.toFixed(1)}ms count=${this.attachedChunkCount}`,
     ].join('\n')
   }
 }

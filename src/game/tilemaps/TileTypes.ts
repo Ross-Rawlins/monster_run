@@ -5,12 +5,9 @@ import {
 } from './layers/ground/GroundRules'
 import {
   getPlatformRuleFrameIndices,
-  resolvePlatformTileFrame,
+  platformRules,
 } from './layers/platforms/PlatformRules'
-import {
-  getCaveRuleFrameIndices,
-  resolveCaveTileFrame,
-} from './layers/caves/CaveRules'
+import { getCaveRuleFrameIndices, caveRules } from './layers/caves/CaveRules'
 import { TILE_ASSIGNMENTS } from '../../config/tileAssignments'
 import { TILE_ROW_OPTIONS_BANDS, TILE_RULES } from '../../config/tileGeneration'
 
@@ -152,7 +149,7 @@ export function getRenderFrameForTileAt(
   const tile = tiles[row][col] as Tile
 
   if (tile === Tile.PLATFORM) {
-    return resolvePlatformTileFrame(
+    return platformRules.resolveFrame(
       row,
       col,
       TILE_ASSIGNMENTS.platformFrame,
@@ -175,7 +172,7 @@ export function getRenderFrameForTileAt(
   }
 
   if (tile === Tile.CAVE) {
-    return resolveCaveTileFrame(row, col, TILE_ASSIGNMENTS.caveFrame, tiles)
+    return caveRules.resolveFrame(row, col, TILE_ASSIGNMENTS.caveFrame, tiles)
   }
 
   return TILE_RENDER_INDEX[tile]

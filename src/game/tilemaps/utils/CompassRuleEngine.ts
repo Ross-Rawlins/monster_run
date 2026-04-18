@@ -1,6 +1,7 @@
 import { getTileAt, pickDeterministicVariant } from '../rules/neighbors'
 
 export type CompassDirection =
+  | 'C'
   | 'N'
   | 'NE'
   | 'E'
@@ -45,7 +46,10 @@ interface CompassResolveOptions {
   ) => number
 }
 
-const DIRECTION_DELTAS: Record<CompassDirection, { dr: number; dc: number }> = {
+export const COMPASS_DIRECTION_DELTAS: Readonly<
+  Record<CompassDirection, { dr: number; dc: number }>
+> = {
+  C: { dr: 0, dc: 0 },
   N: { dr: -1, dc: 0 },
   NE: { dr: -1, dc: 1 },
   E: { dr: 0, dc: 1 },
@@ -60,17 +64,210 @@ const DIRECTION_DELTAS: Record<CompassDirection, { dr: number; dc: number }> = {
   W2: { dr: 0, dc: -2 },
 }
 
+// ── Pre-compiled token types ─────────────────────────────────────────
+// Tokens are parsed once at first use, turning string/regex operations
+// into simple numeric comparisons on the hot path.
+
+const CT_EXACT = 0
+const CT_NOT = 1
+const CT_ANY = 2
+const CT_EMPTY = 3
+const CT_OOB = 4
+
+interface CompiledToken {
+  readonly t: number // CT_EXACT | CT_NOT | CT_ANY | CT_EMPTY | CT_OOB
+  readonly v: number // numeric value for EXACT/NOT, unused for ANY/EMPTY/OOB
+}
+
+interface CompiledDirectionCheck {
+  readonly dir: CompassDirection
+  readonly tokens: readonly CompiledToken[]
+}
+
+interface CompiledPattern {
+  readonly checks: readonly CompiledDirectionCheck[]
+  readonly minimumMatches: number
+}
+
+interface CompiledFrameRule {
+  readonly patterns: readonly CompiledPattern[]
+  readonly original: CompassFrameRule
+}
+
+function compileToken(token: CompassRuleToken): CompiledToken {
+  if (typeof token === 'number') {
+    return { t: CT_EXACT, v: token }
+  }
+
+  const s = token.trim().toUpperCase()
+  const c0 = s.charCodeAt(0)
+
+  if (c0 === 42 /* * */ || s === 'A' || s === 'ANY') {
+    return { t: CT_ANY, v: 0 }
+  }
+  if ((c0 === 45 /* - */ && s.length === 1) || s === 'EMPTY') {
+    return { t: CT_EMPTY, v: 0 }
+  }
+  if (s === 'OOB' || s === 'B') {
+    return { t: CT_OOB, v: 0 }
+  }
+  if (c0 === 33 /* ! */) {
+    return { t: CT_NOT, v: Number(s.slice(1)) }
+  }
+  if (c0 === 65 /* A */ && s.length > 2 && s.charCodeAt(1) === 45 /* - */) {
+    return { t: CT_NOT, v: Number(s.slice(2)) }
+  }
+
+  return { t: CT_EXACT, v: Number(s) }
+}
+
+function compileSpec(spec: CompassRuleSpec): CompiledToken[] {
+  if (Array.isArray(spec)) {
+    return spec.map(compileToken)
+  }
+  return [compileToken(spec)]
+}
+
+function compileMatchPattern(
+  match: CompassMatch,
+  minimumMatches?: number
+): CompiledPattern {
+  const entries = Object.entries(match) as Array<
+    [CompassDirection, CompassRuleSpec]
+  >
+  const checks: CompiledDirectionCheck[] = entries.map(([dir, spec]) => ({
+    dir,
+    tokens: compileSpec(spec),
+  }))
+  return {
+    checks,
+    minimumMatches: minimumMatches ?? checks.length,
+  }
+}
+
+// ── Compilation caches ───────────────────────────────────────────────
+// Keyed by the original object reference (module-level constants).
+
+const ruleArrayCache = new WeakMap<
+  ReadonlyArray<CompassFrameRule>,
+  readonly CompiledFrameRule[]
+>()
+
+const matchCache = new WeakMap<object, readonly CompiledPattern[]>()
+
+function getCompiledRules(
+  rules: ReadonlyArray<CompassFrameRule>
+): readonly CompiledFrameRule[] {
+  let compiled = ruleArrayCache.get(rules)
+  if (!compiled) {
+    compiled = rules.map((rule) => {
+      const patterns = Array.isArray(rule.matches)
+        ? rule.matches
+        : [rule.matches]
+      return {
+        patterns: patterns.map((p) =>
+          compileMatchPattern(p, rule.minimumMatches)
+        ),
+        original: rule,
+      }
+    })
+    ruleArrayCache.set(rules, compiled)
+  }
+  return compiled
+}
+
+function getCompiledPatterns(
+  matches: CompassMatch | CompassMatch[],
+  minimumMatches?: number
+): readonly CompiledPattern[] {
+  const key = matches as object
+  let compiled = matchCache.get(key)
+  if (!compiled) {
+    const patterns = Array.isArray(matches) ? matches : [matches]
+    compiled = patterns.map((p) => compileMatchPattern(p, minimumMatches))
+    matchCache.set(key, compiled)
+  }
+  return compiled
+}
+
+// ── Fast compiled matching (no regex, no string ops) ─────────────────
+
+function compiledTokenMatches(
+  token: CompiledToken,
+  actualValue: number,
+  emptyValue: number,
+  oobValue: number
+): boolean {
+  switch (token.t) {
+    case CT_EXACT:
+      return actualValue === token.v
+    case CT_NOT:
+      return actualValue !== token.v
+    case CT_ANY:
+      return true
+    case CT_EMPTY:
+      return actualValue === emptyValue
+    case CT_OOB:
+      return actualValue === oobValue
+    default:
+      return false
+  }
+}
+
+function compiledSpecMatches(
+  tokens: readonly CompiledToken[],
+  actualValue: number,
+  emptyValue: number,
+  oobValue: number
+): boolean {
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (compiledTokenMatches(tokens[i], actualValue, emptyValue, oobValue)) {
+      return true
+    }
+  }
+  return false
+}
+
+function compiledPatternMatches(
+  pattern: CompiledPattern,
+  neighborhood: Record<CompassDirection, number>,
+  emptyValue: number,
+  oobValue: number
+): boolean {
+  const { checks, minimumMatches } = pattern
+  if (checks.length === 0) return true
+
+  let hitCount = 0
+  for (let i = 0; i < checks.length; i += 1) {
+    const check = checks[i]
+    if (
+      compiledSpecMatches(
+        check.tokens,
+        neighborhood[check.dir],
+        emptyValue,
+        oobValue
+      )
+    ) {
+      hitCount += 1
+      if (hitCount >= minimumMatches) return true
+    }
+  }
+  return false
+}
+
+// ── Public API ───────────────────────────────────────────────────────
+
 function readNeighborDefault(
   tiles: number[][],
   row: number,
   col: number,
   direction: CompassDirection
 ): number {
-  const delta = DIRECTION_DELTAS[direction]
+  const delta = COMPASS_DIRECTION_DELTAS[direction]
   return getTileAt(tiles, row + delta.dr, col + delta.dc, -1)
 }
 
-function buildNeighborhood(
+export function buildNeighborhood(
   tiles: number[][],
   row: number,
   col: number,
@@ -79,9 +276,10 @@ function buildNeighborhood(
     row: number,
     col: number,
     direction: CompassDirection
-  ) => number
+  ) => number = readNeighborDefault
 ): Record<CompassDirection, number> {
   return {
+    C: getNeighborValue(tiles, row, col, 'C'),
     N: getNeighborValue(tiles, row, col, 'N'),
     NE: getNeighborValue(tiles, row, col, 'NE'),
     E: getNeighborValue(tiles, row, col, 'E'),
@@ -97,91 +295,22 @@ function buildNeighborhood(
   }
 }
 
-function tokenMatches(
-  token: CompassRuleToken,
-  actualValue: number,
+/**
+ * Check if compass match patterns match a pre-built neighborhood.
+ * Patterns are compiled on first call and cached by object reference.
+ */
+export function matchesCompassPatterns(
+  matches: CompassMatch | CompassMatch[],
+  neighborhood: Record<CompassDirection, number>,
   emptyValue: number,
-  oobValue: number
+  oobValue: number,
+  minimumMatches?: number
 ): boolean {
-  if (typeof token === 'number') {
-    return actualValue === token
-  }
-
-  const normalized = token.trim().toUpperCase()
-
-  if (normalized === '*' || normalized === 'A' || normalized === 'ANY') {
-    return true
-  }
-
-  if (normalized === '-' || normalized === 'EMPTY') {
-    return actualValue === emptyValue
-  }
-
-  if (normalized === 'OOB' || normalized === 'B') {
-    return actualValue === oobValue
-  }
-
-  if (/^A--?\d+$/.test(normalized)) {
-    const excluded = Number(normalized.slice(2))
-    return actualValue !== excluded
-  }
-
-  if (/^!-?\d+$/.test(normalized)) {
-    const excluded = Number(normalized.slice(1))
-    return actualValue !== excluded
-  }
-
-  if (/^-?\d+$/.test(normalized)) {
-    return actualValue === Number(normalized)
-  }
-
-  return false
-}
-
-function specMatches(
-  spec: CompassRuleSpec,
-  actualValue: number,
-  emptyValue: number,
-  oobValue: number
-): boolean {
-  const tokens = Array.isArray(spec) ? spec : [spec]
-  return tokens.some((token) =>
-    tokenMatches(token, actualValue, emptyValue, oobValue)
-  )
-}
-
-function ruleMatches(
-  rule: CompassFrameRule,
-  context: CompassRuleContext,
-  emptyValue: number,
-  oobValue: number
-): boolean {
-  const patterns = Array.isArray(rule.matches) ? rule.matches : [rule.matches]
-
-  for (const pattern of patterns) {
-    const entries = Object.entries(pattern) as Array<
-      [CompassDirection, CompassRuleSpec]
-    >
-    if (entries.length === 0) {
+  const patterns = getCompiledPatterns(matches, minimumMatches)
+  for (let i = 0; i < patterns.length; i += 1) {
+    if (compiledPatternMatches(patterns[i], neighborhood, emptyValue, oobValue))
       return true
-    }
-
-    const minimumMatches = rule.minimumMatches ?? entries.length
-    let hitCount = 0
-
-    for (const [direction, spec] of entries) {
-      if (
-        specMatches(spec, context.neighborhood[direction], emptyValue, oobValue)
-      ) {
-        hitCount += 1
-      }
-    }
-
-    if (hitCount >= minimumMatches) {
-      return true
-    }
   }
-
   return false
 }
 
@@ -204,12 +333,21 @@ export function findMatchingCompassRule(
     getNeighborValue
   )
 
-  const fullContext: CompassRuleContext = { ...context, neighborhood }
+  const compiled = getCompiledRules(rules)
 
-  for (let index = 0; index < rules.length; index += 1) {
-    const rule = rules[index]
-    if (ruleMatches(rule, fullContext, emptyValue, oobValue)) {
-      return { rule, index, neighborhood }
+  for (let index = 0; index < compiled.length; index += 1) {
+    const cr = compiled[index]
+    for (let p = 0; p < cr.patterns.length; p += 1) {
+      if (
+        compiledPatternMatches(
+          cr.patterns[p],
+          neighborhood,
+          emptyValue,
+          oobValue
+        )
+      ) {
+        return { rule: cr.original, index, neighborhood }
+      }
     }
   }
 

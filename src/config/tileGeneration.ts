@@ -1,6 +1,6 @@
 import type { DirectionRuleSet } from '../types/tilemaps'
-import { GROUND_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/ground/GroundRules'
-import { PLATFORM_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/platforms/PlatformRules'
+import { GROUND_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/ground/GroundConfig'
+import { PLATFORM_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/platforms/PlatformConfig'
 import { SUPPORT_GENERATION_CONSTRAINTS } from './supportGeneration'
 
 export interface TileRuleDefinition {
@@ -119,8 +119,6 @@ export const TILE_ROW_OPTIONS_BANDS: TileRowOptionsBand[] = [
   },
 ]
 
-export {
-  GROUND_GENERATION_CONSTRAINTS,
-  PLATFORM_GENERATION_CONSTRAINTS,
-  SUPPORT_GENERATION_CONSTRAINTS,
-}
+export { GROUND_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/ground/GroundConfig'
+export { PLATFORM_GENERATION_CONSTRAINTS } from '../game/tilemaps/layers/platforms/PlatformConfig'
+export { SUPPORT_GENERATION_CONSTRAINTS } from './supportGeneration'
