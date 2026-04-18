@@ -3,6 +3,7 @@ import {
   GRID_HEIGHT,
   GRID_WIDTH,
   Tile,
+  TILE_RENDER_INDEX,
   getRenderFrameForTileAt,
 } from './TileTypes'
 import { GroundGenerator } from './layers/ground/GroundGenerator'
@@ -110,10 +111,21 @@ export class WFCGenerator {
       )
     )
 
+    const supportBackdropTiles = this.buildSupportBackdropTiles(
+      tiles,
+      caveLayer
+    )
+
     return {
       tiles,
       supportTiles: caveLayer,
       collisionTilemapData,
+      supportVisualTilemapData:
+        this.buildSupportVisualTilemapData(supportBackdropTiles),
+      supportForegroundTilemapData: this.buildSupportForegroundTilemapData(
+        tiles,
+        caveLayer
+      ),
       rightColumn: tiles.map((row) => row[this.width - 1]),
       groundTopStyleByColumn,
       rightGroundOpenSectionStyleIndex:
@@ -130,6 +142,55 @@ export class WFCGenerator {
           Array.from({ length: this.height }, () => Tile.EMPTY),
       },
     }
+  }
+
+  private buildSupportBackdropTiles(
+    tiles: Tile[][],
+    caveLayer: Tile[][]
+  ): Tile[][] {
+    return caveLayer.map((row, rowIndex) =>
+      row.map((supportTile, colIndex) => {
+        if (supportTile === Tile.CAVE) return Tile.CAVE
+        return tiles[rowIndex][colIndex] === Tile.EMPTY ? Tile.EMPTY : Tile.CAVE
+      })
+    )
+  }
+
+  private buildSupportVisualTilemapData(
+    supportBackdropTiles: Tile[][]
+  ): number[][] {
+    const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
+    const caveFrame = TILE_RENDER_INDEX[Tile.CAVE]
+
+    return supportBackdropTiles.map((row, rowIndex) =>
+      row.map((tile, colIndex) => {
+        if (tile !== Tile.CAVE) return emptyFrame
+        const resolved = getRenderFrameForTileAt(
+          supportBackdropTiles,
+          rowIndex,
+          colIndex
+        )
+        return resolved === emptyFrame ? caveFrame : resolved
+      })
+    )
+  }
+
+  private buildSupportForegroundTilemapData(
+    tiles: Tile[][],
+    caveLayer: Tile[][]
+  ): number[][] {
+    const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
+
+    return caveLayer.map((row, rowIndex) =>
+      row.map((supportTile, colIndex) => {
+        if (supportTile !== Tile.CAVE) return emptyFrame
+        if (tiles[rowIndex][colIndex] === Tile.EMPTY) return emptyFrame
+        if (rowIndex > 0 && tiles[rowIndex - 1][colIndex] !== Tile.EMPTY) {
+          return emptyFrame
+        }
+        return getRenderFrameForTileAt(caveLayer, rowIndex, colIndex)
+      })
+    )
   }
 
   private validateLayerColumnLength(column: Tile[], name: string): void {
