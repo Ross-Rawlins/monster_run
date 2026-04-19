@@ -14,6 +14,7 @@ import {
   isGroundInternalDebugCell,
   isGroundSeparatorCell,
 } from '../tilemaps/layers/ground/GroundRules'
+import { resolveCaveCapTopEdgeFrame } from '../tilemaps/layers/caves/CaveRules'
 import {
   COLLIDABLE_TILES,
   getCollisionFrameIndicesForTile,
@@ -44,7 +45,7 @@ const SHOW_DEBUG_LABELS = false
 const SHOW_PARALLAX_IMAGES = true
 const SHOW_TILE_IMAGES = true
 const SHOW_SUPPORT_BACKDROP_IMAGES = true
-const SHOW_SUPPORT_FOREGROUND_CAPS = true
+const SHOW_SUPPORT_FOREGROUND_CAPS = false
 const CONTINUOUS_SCROLL_TEST_MODE = false
 const MANUAL_CAMERA_SCROLL_MODE = true
 const FALL_RECOVERY_BUFFER_TILES = 4
@@ -52,6 +53,10 @@ const CONTINUOUS_SCROLL_SPEED_PX = 180
 const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
 const INTERNAL_DEBUG_TILE_VALUE = 8
 const SEPARATOR_DEBUG_TILE_VALUE = 1
+
+function getIntegerTerrainScale(viewportHeight: number): number {
+  return Math.max(1, Math.floor(viewportHeight / (GRID_HEIGHT * TILE_SIZE_PX)))
+}
 
 interface TileStats {
   empty: number
@@ -115,8 +120,8 @@ export default class GameScene extends Phaser.Scene {
     const sw = this.scale.width
     const sh = this.scale.height
 
-    this.runtimeTileSizePx = sh / GRID_HEIGHT
-    this.runtimeTileScale = this.runtimeTileSizePx / TILE_SIZE_PX
+    this.runtimeTileScale = getIntegerTerrainScale(sh)
+    this.runtimeTileSizePx = TILE_SIZE_PX * this.runtimeTileScale
     this.runtimeChunkWidthPx = GRID_WIDTH * this.runtimeTileSizePx
     this.runtimeChunkHeightPx = GRID_HEIGHT * this.runtimeTileSizePx
     this.playerStartX = this.runtimeTileSizePx * 6
@@ -622,20 +627,17 @@ export default class GameScene extends Phaser.Scene {
           return TILE_RENDER_INDEX[Tile.EMPTY]
         }
 
-        return getRenderFrameForTileAt(chunk.supportTiles, rowIndex, colIndex)
+        return resolveCaveCapTopEdgeFrame(
+          chunk.supportTiles as number[][],
+          rowIndex,
+          colIndex
+        )
       })
     )
   }
 
   private buildSupportVisualTilemapDataFallback(chunk: Chunk): number[][] {
-    const supportBackdropTiles = chunk.supportTiles.map((row, rowIndex) =>
-      row.map((supportTile, colIndex) => {
-        if (supportTile === Tile.CAVE) return Tile.CAVE
-        return chunk.tiles[rowIndex][colIndex] === Tile.EMPTY
-          ? Tile.EMPTY
-          : Tile.CAVE
-      })
-    )
+    const supportBackdropTiles = chunk.supportTiles.map((row) => [...row])
 
     const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
     const caveFrame = TILE_RENDER_INDEX[Tile.CAVE]
@@ -979,7 +981,8 @@ export default class GameScene extends Phaser.Scene {
           TILE_RENDER_INDEX[Tile.EMPTY]
         const isUnresolvedSupport =
           supportTile === Tile.CAVE &&
-          supportResolved === TILE_RENDER_INDEX[Tile.EMPTY]
+          (supportResolved === TILE_RENDER_INDEX[Tile.EMPTY] ||
+            supportResolved === TILE_RENDER_INDEX[Tile.CAVE])
 
         const effectiveTile =
           tile !== Tile.EMPTY ? tile : isUnresolvedSupport ? Tile.CAVE : tile

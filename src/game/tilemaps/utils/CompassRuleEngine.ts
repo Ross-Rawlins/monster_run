@@ -202,7 +202,9 @@ function compiledTokenMatches(
     case CT_EXACT:
       return actualValue === token.v
     case CT_NOT:
-      return actualValue !== token.v
+      // Out-of-bounds values should not match '!X' (not X) tokens.
+      // Use explicit 'OOB' token to match boundaries.
+      return actualValue !== token.v && actualValue !== oobValue
     case CT_ANY:
       return true
     case CT_EMPTY:

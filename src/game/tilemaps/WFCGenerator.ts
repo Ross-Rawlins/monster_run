@@ -9,6 +9,7 @@ import {
 import { GroundGenerator } from './layers/ground/GroundGenerator'
 import { PlatformGenerator } from './layers/platforms/PlatformGenerator'
 import { CaveGenerator } from './layers/caves/CaveGenerator'
+import { resolveCaveCapTopEdgeFrame } from './layers/caves/CaveRules'
 import { LayerCompositor } from './compositor/LayerCompositor'
 
 interface GeneratorOptions {
@@ -111,10 +112,7 @@ export class WFCGenerator {
       )
     )
 
-    const supportBackdropTiles = this.buildSupportBackdropTiles(
-      tiles,
-      caveLayer
-    )
+    const supportBackdropTiles = this.buildSupportBackdropTiles(caveLayer)
 
     return {
       tiles,
@@ -144,16 +142,8 @@ export class WFCGenerator {
     }
   }
 
-  private buildSupportBackdropTiles(
-    tiles: Tile[][],
-    caveLayer: Tile[][]
-  ): Tile[][] {
-    return caveLayer.map((row, rowIndex) =>
-      row.map((supportTile, colIndex) => {
-        if (supportTile === Tile.CAVE) return Tile.CAVE
-        return tiles[rowIndex][colIndex] === Tile.EMPTY ? Tile.EMPTY : Tile.CAVE
-      })
-    )
+  private buildSupportBackdropTiles(caveLayer: Tile[][]): Tile[][] {
+    return caveLayer.map((row) => [...row])
   }
 
   private buildSupportVisualTilemapData(
@@ -184,11 +174,15 @@ export class WFCGenerator {
     return caveLayer.map((row, rowIndex) =>
       row.map((supportTile, colIndex) => {
         if (supportTile !== Tile.CAVE) return emptyFrame
-        if (tiles[rowIndex][colIndex] === Tile.EMPTY) return emptyFrame
+        if (tiles[rowIndex][colIndex] !== Tile.GROUND) return emptyFrame
         if (rowIndex > 0 && tiles[rowIndex - 1][colIndex] !== Tile.EMPTY) {
           return emptyFrame
         }
-        return getRenderFrameForTileAt(caveLayer, rowIndex, colIndex)
+        return resolveCaveCapTopEdgeFrame(
+          caveLayer as number[][],
+          rowIndex,
+          colIndex
+        )
       })
     )
   }

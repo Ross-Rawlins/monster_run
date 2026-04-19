@@ -1,7 +1,9 @@
 import type { BaseRuleContext } from '../../rules/ruleTypes'
 import type { SupportGenerationConstraints } from '../../../../config/supportGeneration'
 
-export type CaveGenerationConstraints = SupportGenerationConstraints
+export interface CaveGenerationConstraints extends SupportGenerationConstraints {
+  minLowerRowWidth: number
+}
 
 export type CaveSignature =
   | 'single'

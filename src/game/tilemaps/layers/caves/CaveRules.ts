@@ -109,33 +109,94 @@ export function formatCaveNeighborhood(
   return `signature: ${signature}  |  bitmask: ${maskLabel(mask)}`
 }
 
+// ─── Foreground cap frame resolution ─────────────────────────────────
+// Cave foreground caps render at depth 2 on top of ground-surface tiles.
+// The CaveGenerator extends cave tiles ABOVE the ground row (the passage
+// continues upward through empty-terrain rows to the platform above), so
+// at a cap position the caveLayer always has cave in the N cell.
+// The standard top-edge rules all require N:'!7' and therefore never fire.
+// This helper bypasses N entirely and picks the correct top-edge frame
+// based solely on the W/E neighbours.
+export function resolveCaveCapTopEdgeFrame(
+  caveLayer: number[][],
+  row: number,
+  col: number
+): number {
+  const hasW = isCaveAt(caveLayer, row, col - 1)
+  const hasE = isCaveAt(caveLayer, row, col + 1)
+
+  if (!hasW && hasE) return toFrameIndex(218) // left end of top edge
+  if (hasW && hasE) return toFrameIndex(219) // centre of top edge
+  if (hasW && !hasE) return toFrameIndex(220) // right end of top edge
+  return toFrameIndex(218) // isolated single cap – use left-end frame
+}
+
 // ─── Rules ───────────────────────────────────────────────────────────
 // Compass tokens: 7 = cave, '!7' = not cave (empty/OOB/other)
 // variants = per-tile style alternatives (selected by variantSeed)
 
 const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
   // // ═══ Single-row (1-tall) ═══════════════════════════════════════════
-  // {
-  //   matches: [{ N: '!7', S: '!7', W: '!7', E: '!7' }],
-  //   frames: [toFrameIndex(218)],
-  // },
-  // {
-  //   matches: [{ N: '!7', S: '!7', W: '!7', E: 7 }],
-  //   frames: [toFrameIndex(225)],
-  // },
-  // {
-  //   matches: [{ N: '!7', S: '!7', W: 7, E: 7 }],
-  //   frames: [toFrameIndex(226)],
-  // },
-  // {
-  //   matches: [{ N: '!7', S: '!7', W: 7, E: '!7' }],
-  //   frames: [toFrameIndex(227)],
-  // },
+
+  {
+    matches: [{ N: '!7', S: '7', W: '!7', E: 7 }],
+    frames: [toFrameIndex(218)],
+  },
+  {
+    matches: [{ N: '!7', S: 7, W: 7, E: 7 }],
+    frames: [toFrameIndex(219)],
+  },
+  {
+    matches: [{ N: '!7', S: '7', W: '7', E: '!7' }],
+    frames: [toFrameIndex(220)],
+  },
+  {
+    matches: [
+      { N: '7', S: '7', W: '!7', E: '7' },
+      { N: '7', S: '-1', W: '!7', E: '7' },
+    ],
+    frames: [toFrameIndex(225)],
+  },
+  {
+    matches: [{ N: '7', S: '7', W: '7', E: '!7' }],
+    frames: [toFrameIndex(227)],
+  },
+  {
+    matches: [{ N: '7', S: '!7', W: '!7', E: '!7' }],
+    frames: [toFrameIndex(232)],
+  },
+  {
+    matches: [{ N: '7', S: '!7', W: '7', E: 7 }],
+    frames: [toFrameIndex(233)],
+  },
+  {
+    matches: [{ N: '7', S: '!7', W: 7, E: '!7' }],
+    frames: [toFrameIndex(234)],
+  },
+  {
+    matches: [{ N: 7, S: 7, W: 7, E: 7, NE: '!7' }],
+    frames: [toFrameIndex(244)],
+  },
+  {
+    matches: [{ N: 7, S: 7, W: 7, E: 7, NW: '!7' }],
+    frames: [toFrameIndex(245)],
+  },
+  {
+    matches: [{ N: 7, S: 7, W: 7, E: 7, SE: '!7' }],
+    frames: [toFrameIndex(238)],
+  },
+  {
+    matches: [
+      { N: 7, S: 7, W: '!7', E: 7, SW: '!7' },
+      { N: 7, S: '!7', W: '!7', E: 7, SW: '!7' },
+    ],
+    frames: [toFrameIndex(239)],
+  },
 
   // ═══ Fully enclosed interior ═══════════════════════════════════════
   {
     matches: [{ N: 7, S: 7, W: 7, E: 7, NW: 7, NE: 7, SW: 7, SE: 7 }],
-    variants: [[toFrameIndex(284)], [toFrameIndex(285)], [toFrameIndex(291)]],
+    variants: [[toFrameIndex(226)], [toFrameIndex(284)], [toFrameIndex(290)]],
   },
 ]
 

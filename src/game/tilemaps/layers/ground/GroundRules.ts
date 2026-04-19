@@ -234,13 +234,20 @@ const GROUND_RULES: LayerRule<GroundRuleContext>[] = [
     matches: [{ N: '!6', S: 6, W: 6, E: 6 }],
     variants: [[toFrameIndex(42)], [toFrameIndex(128)]],
   },
+  // Isolated top cap: no ground on either side (e.g. adjacent to platform or
+  // empty on both sides). Use left-edge frames as a safe fallback so the cell
+  // is never transparent.
   {
-    matches: [{ N: 6, E: 6, NE: [-1, 0, 7] }],
+    matches: [{ N: '!6', S: 6, W: '!6', E: '!6' }],
+    variants: [[toFrameIndex(41)], [toFrameIndex(127)]],
+  },
+  {
+    matches: [{ N: 6, E: 6, NE: [-1, 0, 5] }],
     variants: [[toFrameIndex(49)], [toFrameIndex(148)]],
   },
   // Step-join inner corner opening on NW diagonal.
   {
-    matches: [{ N: 6, W: 6, NW: [-1, 0, 7] }],
+    matches: [{ N: 6, W: 6, NW: [-1, 0, 5] }],
     variants: [[toFrameIndex(50)], [toFrameIndex(149)]],
   },
 
@@ -336,8 +343,11 @@ export function resolveGroundTileFrame(
     variantSeed,
   }
 
+  // Do not pass unresolvedFrame: -1 here — unmatched configurations must fall
+  // back to context.fallbackFrame (TILE_ASSIGNMENTS.groundFrame = 0), a solid
+  // ground tile. Returning -1 (transparent) lets the cave backdrop at depth 0
+  // bleed through whenever a ground rule has a gap.
   return resolveLayerRuleFrame(GROUND_RULES, context, {
-    unresolvedFrame: -1,
     getNeighborValue: getGroundRuleNeighborValue,
   })
 }
@@ -377,7 +387,11 @@ export class GroundRulesImpl extends BaseLayerRules<
   protected readonly rules = GROUND_RULES
 
   protected get resolveOptions() {
-    return { unresolvedFrame: -1 }
+    // Do not set unresolvedFrame here — falls back to context.fallbackFrame
+    // (TILE_ASSIGNMENTS.groundFrame = 0), so unmatched configurations render
+    // as a solid ground tile rather than transparent (-1). Transparency lets
+    // the cave backdrop at depth 0 bleed through wherever rules have gaps.
+    return {}
   }
 
   protected buildContext(

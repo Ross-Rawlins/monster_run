@@ -54,6 +54,8 @@ export class CaveGenerator implements ILayerGenerator {
     for (const segment of segments) {
       this.buildCaveForSegment(tiles, terrainRef, segment)
     }
+
+    this.removeIsolatedCaveTiles(tiles)
   }
 
   private buildTerrainReference(
@@ -208,7 +210,9 @@ export class CaveGenerator implements ILayerGenerator {
       }
 
       const minimumWidthForRow =
-        row <= underPlatformRow ? guaranteedAnchorWidth : 1
+        row <= underPlatformRow
+          ? guaranteedAnchorWidth
+          : CAVE_GENERATION_CONSTRAINTS.minLowerRowWidth
       let desiredSpan = this.ensureMinWidth(desired, minimumWidthForRow)
       desiredSpan = this.ensureVerticalContinuity(
         desiredSpan,
@@ -275,7 +279,7 @@ export class CaveGenerator implements ILayerGenerator {
 
   private buildSpanFromCenter(center: number, width: number): Span {
     const safeWidth = Math.max(1, width)
-    let left = center - Math.floor((safeWidth - 1) * 0.5)
+    let left = center - Math.round((safeWidth - 1) * 0.5)
     let right = left + safeWidth - 1
 
     if (left < 0) {
@@ -316,6 +320,42 @@ export class CaveGenerator implements ILayerGenerator {
         tiles[row][col] = Tile.CAVE
       }
     }
+  }
+
+  private removeIsolatedCaveTiles(tiles: Tile[][]): void {
+    const isolatedCells: Array<{ row: number; col: number }> = []
+
+    for (let row = 0; row < this.height; row += 1) {
+      for (let col = 0; col < this.width; col += 1) {
+        if (tiles[row][col] !== Tile.CAVE) {
+          continue
+        }
+
+        const hasVerticalNeighbor =
+          this.isCaveTileAt(tiles, row - 1, col) ||
+          this.isCaveTileAt(tiles, row + 1, col)
+
+        if (!hasVerticalNeighbor) {
+          isolatedCells.push({ row, col })
+        }
+      }
+    }
+
+    for (const cell of isolatedCells) {
+      tiles[cell.row][cell.col] = Tile.EMPTY
+    }
+  }
+
+  private isCaveTileAt(
+    tiles: ReadonlyArray<ReadonlyArray<Tile>>,
+    row: number,
+    col: number
+  ): boolean {
+    if (row < 0 || row >= this.height || col < 0 || col >= this.width) {
+      return false
+    }
+
+    return tiles[row][col] === Tile.CAVE
   }
 
   private spanTouchesGroundBelow(
