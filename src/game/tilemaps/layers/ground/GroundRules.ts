@@ -106,44 +106,17 @@ function buildGroundClassificationGrid(tiles: number[][]): number[][] {
       const tile = tiles[row][col]
       if (tile !== TILE_GROUND) {
         grid[row][col] = tile
-        continue
-      }
-      if (isGroundInternalDebugCell(tiles, row, col)) {
+      } else if (isGroundInternalDebugCell(tiles, row, col)) {
+        // Internal ground cells report 8 for compass matching.
         grid[row][col] = GROUND_INTERNAL_VALUE
-        continue
-      }
-      grid[row][col] = GROUND_SURFACE_VALUE
-    }
-  }
-
-  // Second pass: identify gap-ring cells (surface ground adjacent to internal)
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      if (grid[row][col] !== GROUND_SURFACE_VALUE) continue
-
-      for (let di = 0; di < 8; di += 1) {
-        const nr = row + GAP_RING_OFFSETS_R[di]
-        const nc = col + GAP_RING_OFFSETS_C[di]
-        if (
-          nr >= 0 &&
-          nr < rows &&
-          nc >= 0 &&
-          nc < cols &&
-          grid[nr][nc] === GROUND_INTERNAL_VALUE
-        ) {
-          grid[row][col] = GROUND_SEPARATOR_VALUE
-          break
-        }
+      } else {
+        grid[row][col] = GROUND_SURFACE_VALUE
       }
     }
   }
 
   return grid
 }
-
-// Pre-computed offset arrays for gap-ring 8-neighbor check
-const GAP_RING_OFFSETS_R = [-1, -1, -1, 0, 0, 1, 1, 1]
-const GAP_RING_OFFSETS_C = [-1, 0, 1, -1, 1, -1, 0, 1]
 
 function getGroundClassificationGrid(tiles: number[][]): number[][] {
   let grid = classificationCache.get(tiles)
@@ -221,93 +194,87 @@ const GROUND_RULES: LayerRule<GroundRuleContext>[] = [
 
   // Top-left edge cap: ground continues to the right.
   {
-    matches: [{ N: '!6', S: 6, W: '!6', E: 6 }],
-    variants: [[toFrameIndex(41)], [toFrameIndex(127)]],
+    matches: [{ N: 0, S: 6, W: 0, E: 6 }],
+    variants: [[toFrameIndex(6)], [toFrameIndex(71)]],
   },
   // Top-center cap: ground on both sides.
   {
-    matches: [{ N: '!6', S: 6, W: 6, E: '!6' }],
-    variants: [[toFrameIndex(43)], [toFrameIndex(129)]],
+    matches: [{ N: 0, S: 6, W: 6, E: 0 }],
+    variants: [[toFrameIndex(8)], [toFrameIndex(73)]],
   },
   // Top-right edge cap: ground continues from the left.
   {
-    matches: [{ N: '!6', S: 6, W: 6, E: 6 }],
-    variants: [[toFrameIndex(42)], [toFrameIndex(128)]],
+    matches: [{ N: 0, S: 6, W: 6, E: 6 }],
+    variants: [[toFrameIndex(7)], [toFrameIndex(72)]],
   },
   // Isolated top cap: no ground on either side (e.g. adjacent to platform or
   // empty on both sides). Use left-edge frames as a safe fallback so the cell
   // is never transparent.
   {
-    matches: [{ N: '!6', S: 6, W: '!6', E: '!6' }],
-    variants: [[toFrameIndex(41)], [toFrameIndex(127)]],
+    matches: [{ N: 0, S: 6, W: 0, E: 0 }],
+    variants: [[toFrameIndex(6)], [toFrameIndex(71)]],
   },
   {
     matches: [{ N: 6, E: 6, NE: [-1, 0, 5] }],
-    variants: [[toFrameIndex(49)], [toFrameIndex(148)]],
+    variants: [[toFrameIndex(20)], [toFrameIndex(97)]],
   },
   // Step-join inner corner opening on NW diagonal.
   {
     matches: [{ N: 6, W: 6, NW: [-1, 0, 5] }],
-    variants: [[toFrameIndex(50)], [toFrameIndex(149)]],
+    variants: [[toFrameIndex(21)], [toFrameIndex(98)]],
   },
 
-  // ─── Internal (8) zone boundary rules ────────────────────────────────
-  // With the 1 gap ring in place, no 8-centre cell will ever see a direct
-  // 6 neighbour — the gap ring cells always report 1 instead.
-
-  // Top-left inner corner of the 8 zone: gap ring above and to the left.
-  {
-    matches: [{ C: 8, N: 1, S: 8, W: 1, E: 8 }],
-    frames: [toFrameIndex(142)],
-  },
-  // Top-right inner corner of the 8 zone: gap ring above and to the right.
-  {
-    matches: [{ C: 8, N: 1, S: 8, W: 8, E: 1 }],
-    frames: [toFrameIndex(143)],
-  },
-  // Gap-ring cell on the left edge: 8 to the east, surface ground to all other sides.
-  {
-    matches: [{ C: 1, N: 6, S: 6, W: 6, E: 8 }],
-    frames: [toFrameIndex(142), toFrameIndex(137)],
-  },
-  // Gap-ring cell surrounded by 8 on all cardinal sides: NW is also in gap ring.
-  {
-    matches: [{ C: 1, N: 8, S: 8, W: 8, E: 8, NW: 1 }],
-    frames: [toFrameIndex(137)],
-  },
-  {
-    matches: [{ N: '0', S: 6, W: 0, E: 6 }],
-    variants: [[toFrameIndex(129)]],
-  },
-  // Gap-ring cell surrounded by 8 on all cardinal sides: NE is also in gap ring.
-  {
-    matches: [{ N: 8, W: 8, E: 8, S: 8, C: 1, NE: 1 }],
-    variants: [[toFrameIndex(139)]],
-  },
-  // Left-edge ground column (E is empty/air or internal gap ring).
+  // Left-edge ground column: air/OOB to the east, ground to the west, above, and below.
   {
     matches: [
       { E: 0, W: 6, S: 6, N: 6 },
       { E: 0, W: 6, S: -1, N: 6 },
-      { E: 1, W: 6, S: 1, N: 8 },
-      { E: 1, W: 6, S: 8, N: 8 },
+      { E: 0, W: 6, S: 0, N: 6 },
+      { E: 8, W: 6, S: 6, N: 6 },
+      { E: 8, W: 6, S: -1, N: 6 },
     ],
-    frames: [toFrameIndex(134)],
+    frames: [toFrameIndex(80)],
   },
-  // Right-edge ground column (W is empty/air or internal gap ring).
+  {
+    matches: [{ E: 6, W: 8, S: 8, N: 6, C: 6 }],
+    frames: [toFrameIndex(85)],
+  },
+  {
+    matches: [{ E: 6, W: 6, S: 8, N: 6 }],
+    frames: [toFrameIndex(86)],
+  },
+  {
+    matches: [{ E: 8, W: 6, S: 8, N: 6, C: 6 }],
+    frames: [toFrameIndex(87)],
+  },
+  {
+    matches: [{ E: 6, W: 6, S: 6, N: 6, SE: 8 }],
+    frames: [toFrameIndex(91)],
+  },
+  {
+    matches: [{ E: 6, W: 6, S: 6, N: 6, SW: 8 }],
+    frames: [toFrameIndex(92)],
+  },
+  // Right-edge ground column: air/OOB to the west, ground to the east, above, and below.
   {
     matches: [
       { E: 6, W: 0, S: 6, N: 6 },
       { E: 6, W: 0, S: -1, N: 6 },
-      { E: 6, W: 1, S: 1, N: 8 },
-      { E: 6, W: 1, S: 8, N: 8 },
+      { E: 6, W: 0, S: 0, N: 6 },
+      { E: 6, W: -1, S: 6, N: 6 },
+      { E: 6, W: -1, S: 0, N: 6 },
+      { E: 6, W: -1, S: -1, N: 6 },
+      { E: 6, W: 8, S: 6, N: 6 },
+      { E: 6, W: 8, S: -1, N: 6 },
     ],
-    frames: [toFrameIndex(132)],
+    frames: [toFrameIndex(78)],
   },
-  // Top gap-ring row: 8 to east/west/south, gap ring (1) to north.
+  // Internal ground section: hide inset cells by emitting -1 (empty tile).
+  // Returning null for non-internal cells lets unmatched surface cells reach
+  // the unresolvedFrame fallback (tile 79) below.
   {
-    matches: [{ C: 1, E: 8, W: 8, S: 8, N: 1 }],
-    frames: [toFrameIndex(125)],
+    resolve: (ctx) =>
+      isGroundInternalDebugCell(ctx.tiles, ctx.row, ctx.col) ? -1 : null,
   },
 ]
 
@@ -343,12 +310,11 @@ export function resolveGroundTileFrame(
     variantSeed,
   }
 
-  // Do not pass unresolvedFrame: -1 here — unmatched configurations must fall
-  // back to context.fallbackFrame (TILE_ASSIGNMENTS.groundFrame = 0), a solid
-  // ground tile. Returning -1 (transparent) lets the cave backdrop at depth 0
-  // bleed through whenever a ground rule has a gap.
+  // Unmatched surface ground cells fall back to tile 79 (solid fill).
+  // Internal cells are caught by the resolver above and resolve to -1 (empty).
   return resolveLayerRuleFrame(GROUND_RULES, context, {
     getNeighborValue: getGroundRuleNeighborValue,
+    unresolvedFrame: toFrameIndex(79),
   })
 }
 
@@ -365,7 +331,6 @@ export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
       toFrameIndex(146),
       toFrameIndex(140),
       toFrameIndex(163),
-      toFrameIndex(133),
       toFrameIndex(148),
       toFrameIndex(149),
       toFrameIndex(49),
@@ -387,11 +352,10 @@ export class GroundRulesImpl extends BaseLayerRules<
   protected readonly rules = GROUND_RULES
 
   protected get resolveOptions() {
-    // Do not set unresolvedFrame here — falls back to context.fallbackFrame
-    // (TILE_ASSIGNMENTS.groundFrame = 0), so unmatched configurations render
-    // as a solid ground tile rather than transparent (-1). Transparency lets
-    // the cave backdrop at depth 0 bleed through wherever rules have gaps.
-    return {}
+    // Use -1 for unresolved ground so unmatched cells are transparent rather
+    // than rendering the placeholder frame 0. Cave backdrop bleed-through is
+    // no longer a risk: buildSupportBackdropTiles only fills actual cave cells.
+    return { unresolvedFrame: -1 }
   }
 
   protected buildContext(

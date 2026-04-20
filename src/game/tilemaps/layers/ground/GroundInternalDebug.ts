@@ -1,14 +1,15 @@
 const TILE_GROUND = 6
-export const GROUND_INTERNAL_DEBUG_OFFSET_TILES = 1
-const MIN_INTERNAL_EFFECTIVE_OFFSET_TILES = 1
+export const GROUND_INTERNAL_DEBUG_OFFSET_TILES = 2
+const MIN_INTERNAL_EFFECTIVE_OFFSET_TILES = 2
 
-const MIN_INTERNAL_WIDTH_TILES = 3
+const MIN_INTERNAL_WIDTH_TILES = 2
 const MIN_INTERNAL_HEIGHT_TILES = 3
 const NON_GROUND_DISTANCE = -1
 
 interface GroundInternalCacheEntry {
   distanceField: number[][]
   qualifiedMasksByOffset: Map<number, boolean[][]>
+  resolvedOffsetsByRequest: Map<number, number>
 }
 
 const groundInternalCache = new WeakMap<number[][], GroundInternalCacheEntry>()
@@ -120,9 +121,59 @@ function getOrCreateGroundInternalCache(
   const created: GroundInternalCacheEntry = {
     distanceField: buildGroundDistanceField(tiles),
     qualifiedMasksByOffset: new Map<number, boolean[][]>(),
+    resolvedOffsetsByRequest: new Map<number, number>(),
   }
   groundInternalCache.set(tiles, created)
   return created
+}
+
+function hasSingleColumnInternalSpan(mask: boolean[][]): boolean {
+  for (let row = 0; row < mask.length; row += 1) {
+    let col = 0
+    while (col < mask[row].length) {
+      if (!mask[row][col]) {
+        col += 1
+        continue
+      }
+
+      let runLength = 0
+      while (col < mask[row].length && mask[row][col]) {
+        runLength += 1
+        col += 1
+      }
+
+      if (runLength < 2) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+function resolveEffectiveOffset(
+  tiles: number[][],
+  cacheEntry: GroundInternalCacheEntry,
+  requestedOffset: number
+): number {
+  const cached = cacheEntry.resolvedOffsetsByRequest.get(requestedOffset)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const maxOffset = getMaxGroundDistance(cacheEntry.distanceField)
+  const clampedStartOffset = Math.min(requestedOffset, maxOffset)
+
+  for (let offset = clampedStartOffset; offset <= maxOffset; offset += 1) {
+    const mask = getQualifiedMaskForOffset(tiles, cacheEntry, offset)
+    if (!hasSingleColumnInternalSpan(mask)) {
+      cacheEntry.resolvedOffsetsByRequest.set(requestedOffset, offset)
+      return offset
+    }
+  }
+
+  cacheEntry.resolvedOffsetsByRequest.set(requestedOffset, maxOffset)
+  return maxOffset
 }
 
 function buildQualifiedInternalMask(
@@ -217,58 +268,6 @@ function buildQualifiedInternalMask(
   return qualifiedMask
 }
 
-function hasSubMinimumRunInLine(
-  values: boolean[],
-  minRunLength: number
-): boolean {
-  let runLength = 0
-
-  for (const value of values) {
-    if (!value) {
-      if (runLength > 0 && runLength < minRunLength) {
-        return true
-      }
-      runLength = 0
-      continue
-    }
-
-    runLength += 1
-  }
-
-  return runLength > 0 && runLength < minRunLength
-}
-
-function hasSubMinimumRunInAnyRow(mask: boolean[][]): boolean {
-  for (const row of mask) {
-    if (hasSubMinimumRunInLine(row, MIN_INTERNAL_WIDTH_TILES)) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function hasSubMinimumRunInAnyColumn(mask: boolean[][]): boolean {
-  const cols = mask[0].length
-
-  for (let col = 0; col < cols; col += 1) {
-    const columnValues = mask.map((row) => row[col])
-    if (hasSubMinimumRunInLine(columnValues, MIN_INTERNAL_HEIGHT_TILES)) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function hasSubMinimumRunInAnyRowOrColumn(mask: boolean[][]): boolean {
-  if (mask.length === 0 || mask[0].length === 0) {
-    return false
-  }
-
-  return hasSubMinimumRunInAnyRow(mask) || hasSubMinimumRunInAnyColumn(mask)
-}
-
 function getMaxGroundDistance(distanceField: number[][]): number {
   let maxDistance = 0
 
@@ -300,16 +299,6 @@ function getQualifiedMaskForOffset(
   return qualifiedMask
 }
 
-function countQualifiedCells(mask: boolean[][]): number {
-  let count = 0
-  for (const row of mask) {
-    for (const cell of row) {
-      if (cell) count += 1
-    }
-  }
-  return count
-}
-
 export function isGroundInternalDebugCell(
   tiles: number[][],
   row: number,
@@ -322,44 +311,16 @@ export function isGroundInternalDebugCell(
 
   const normalizedOffset = Math.max(MIN_INTERNAL_EFFECTIVE_OFFSET_TILES, offset)
   const cacheEntry = getOrCreateGroundInternalCache(tiles)
-  const maxOffset = getMaxGroundDistance(cacheEntry.distanceField)
-
-  let effectiveOffset = Math.min(normalizedOffset, maxOffset)
-  let qualifiedMask = getQualifiedMaskForOffset(
+  const effectiveOffset = resolveEffectiveOffset(
+    tiles,
+    cacheEntry,
+    normalizedOffset
+  )
+  const qualifiedMask = getQualifiedMaskForOffset(
     tiles,
     cacheEntry,
     effectiveOffset
   )
-  let qualifiedCellCount = countQualifiedCells(qualifiedMask)
-
-  // Keep increasing inset depth while rows/columns still contain runs
-  // narrower than the minimum internal width/height constraints.
-  while (
-    effectiveOffset < maxOffset &&
-    hasSubMinimumRunInAnyRowOrColumn(qualifiedMask)
-  ) {
-    const previousQualifiedCellCount = qualifiedCellCount
-    const nextOffset = effectiveOffset + 1
-    const nextMask = getQualifiedMaskForOffset(tiles, cacheEntry, nextOffset)
-    const nextQualifiedCellCount = countQualifiedCells(nextMask)
-
-    // Do not continue increasing depth when it would erase all internals.
-    if (nextQualifiedCellCount === 0) {
-      break
-    }
-
-    effectiveOffset = nextOffset
-    qualifiedMask = nextMask
-    qualifiedCellCount = nextQualifiedCellCount
-
-    // If deeper offset does not improve run quality, stop escalating.
-    if (
-      hasSubMinimumRunInAnyRowOrColumn(qualifiedMask) &&
-      nextQualifiedCellCount >= previousQualifiedCellCount
-    ) {
-      break
-    }
-  }
 
   return qualifiedMask[row][col]
 }

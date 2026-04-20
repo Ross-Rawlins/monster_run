@@ -2,6 +2,7 @@ import * as Phaser from 'phaser'
 import { CharacterRegistry } from '../characters/CharacterRegistry'
 import PlayableCharacter from '../characters/PlayableCharacter'
 import { SCENE_KEYS } from '../config/keys'
+import { createFullScreenGradientOverlay } from '../game/render/createFullScreenGradientOverlay'
 
 export default class CharacterSandboxScene extends Phaser.Scene {
   private player!: PlayableCharacter
@@ -48,6 +49,8 @@ export default class CharacterSandboxScene extends Phaser.Scene {
     this.player.setDepth(10)
     this.enemy.setDepth(10)
 
+    createFullScreenGradientOverlay(this, width, height, { depth: 20 })
+
     this.physics.add.collider(this.player, floor)
     this.physics.add.collider(this.enemy, floor)
 
@@ -60,12 +63,14 @@ export default class CharacterSandboxScene extends Phaser.Scene {
     this.attackKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.resetKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
 
-    this.add.text(
-      16,
-      16,
-      'Character Sandbox (scene=sandbox)\nLeft/Right move, Up/Space jump, A attack, R restart\nUse scene=runner for infinite runner.',
-      { fontFamily: 'monospace', fontSize: '13px', color: '#f5f7ff' }
-    )
+    this.add
+      .text(
+        16,
+        16,
+        'Character Sandbox (scene=sandbox)\nLeft/Right move, Up/Space jump, A attack, R restart\nUse scene=runner for infinite runner.',
+        { fontFamily: 'monospace', fontSize: '13px', color: '#f5f7ff' }
+      )
+      .setDepth(30)
   }
 
   public update(): void {

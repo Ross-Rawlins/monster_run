@@ -1,4 +1,8 @@
-import { isTileAt, getTileAt as getTileAtRaw } from '../../rules/neighbors'
+import {
+  isTileAt,
+  getTileAt as getTileAtRaw,
+  hashTileCoordinates,
+} from '../../rules/neighbors'
 
 // ─── Generic tile predicates ─────────────────────────────────────────
 
@@ -152,7 +156,7 @@ export function selectVariantFrame(
   salt: number
 ): number {
   if (frames.length === 0) return -1
-  const hash = (row * 10007) ^ (col * 30011) ^ (salt * 70001)
-  const index = Math.abs(hash) % frames.length
+  const hash = hashTileCoordinates(row, col, salt)
+  const index = hash % frames.length
   return frames[index]
 }

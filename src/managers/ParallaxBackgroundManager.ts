@@ -3,6 +3,8 @@ import { resolveParallaxLayerConfigs } from '../config/parallax'
 import { RUNNER_ASSET_KEYS } from '../config/keys'
 import type { ParallaxLayer } from './parallax/types'
 
+const PARALLAX_SEAM_OVERLAP_PX = 1
+
 export class ParallaxBackgroundManager {
   private readonly layers: ParallaxLayer[] = []
 
@@ -29,17 +31,21 @@ export class ParallaxBackgroundManager {
 
       const scale = config.stripHeight / frame.height
       const scaledWidth = Math.max(1, Math.round(frame.width * scale))
-      const scaledHeight = Math.max(1, Math.round(config.stripHeight))
+      const topY = Math.round(config.top)
+      const scaledHeight = Math.max(
+        1,
+        Math.ceil(config.stripHeight) + PARALLAX_SEAM_OVERLAP_PX
+      )
       const spriteCount = Math.ceil(this.cameraWidth / scaledWidth) + 3
       const sprites: Phaser.GameObjects.Image[] = []
 
-      const imageBottom = config.top + scaledHeight
+      const imageBottom = topY + scaledHeight
       const fillBottomY =
         layerIndex < layerConfigs.length - 1
-          ? layerConfigs[layerIndex + 1].top
+          ? Math.round(layerConfigs[layerIndex + 1].top)
           : this.cameraHeight
 
-      const fillTopY = imageBottom
+      const fillTopY = imageBottom - PARALLAX_SEAM_OVERLAP_PX
       const fillHeight = Math.max(0, Math.ceil(fillBottomY - fillTopY))
       const fillCenterY = fillTopY + fillHeight * 0.5
 
@@ -58,7 +64,7 @@ export class ParallaxBackgroundManager {
         const xPos = index * scaledWidth
         const sprite = this.scene.add.image(
           xPos,
-          config.top,
+          topY,
           RUNNER_ASSET_KEYS.BACKGROUND_ATLAS,
           config.frame
         )

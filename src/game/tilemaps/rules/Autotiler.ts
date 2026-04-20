@@ -13,6 +13,8 @@
 // Same-type-only sampling: only neighbours matching the target tileType
 // set a bit. Out-of-bounds cells are treated as non-matching.
 
+import { hashTileCoordinates } from './neighbors'
+
 export const MASK_NW = 1
 export const MASK_N = 2
 export const MASK_NE = 4
@@ -71,7 +73,7 @@ export function resolveAutotileFrame(
   const frames = table[mask]
   if (!frames || frames.length === 0) return fallbackFrame
   if (frames.length === 1) return frames[0]
-  const hash = (row * 73856093 + col * 19349663) >>> 0
+  const hash = hashTileCoordinates(row, col, mask)
   return frames[hash % frames.length]
 }
 

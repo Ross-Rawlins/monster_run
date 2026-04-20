@@ -133,21 +133,24 @@ export function resolveCaveCapTopEdgeFrame(
 
 // ─── Rules ───────────────────────────────────────────────────────────
 // Compass tokens: 7 = cave, '!7' = not cave (empty/OOB/other)
-// variants = per-tile style alternatives (selected by variantSeed)
+// frames = deterministic per-tile variation (stable row/col hash)
+// variants = grouped style sets (selected by variantSeed, then hashed within set)
 
 const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
   // // ═══ Single-row (1-tall) ═══════════════════════════════════════════
 
   {
-    matches: [{ N: '!7', S: '7', W: '!7', E: 7 }],
+    // Treat OOB above the chunk as open ceiling so row-0 cave tops still resolve.
+    matches: [{ N: ['!7', 'OOB'], S: '7', W: '!7', E: 7 }],
     frames: [toFrameIndex(218)],
   },
   {
-    matches: [{ N: '!7', S: 7, W: 7, E: 7 }],
+    // Required for row-0 top-center caps (frame 219).
+    matches: [{ N: ['!7', 'OOB'], S: 7, W: 7, E: 7 }],
     frames: [toFrameIndex(219)],
   },
   {
-    matches: [{ N: '!7', S: '7', W: '7', E: '!7' }],
+    matches: [{ N: ['!7', 'OOB'], S: '7', W: '7', E: '!7' }],
     frames: [toFrameIndex(220)],
   },
   {
@@ -196,7 +199,7 @@ const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
   // ═══ Fully enclosed interior ═══════════════════════════════════════
   {
     matches: [{ N: 7, S: 7, W: 7, E: 7, NW: 7, NE: 7, SW: 7, SE: 7 }],
-    variants: [[toFrameIndex(226)], [toFrameIndex(284)], [toFrameIndex(290)]],
+    frames: [toFrameIndex(226), toFrameIndex(284), toFrameIndex(290)],
   },
 ]
 

@@ -97,6 +97,22 @@ export function classifyHorizontalRole(
   return state.hasLeft ? 'right_edge' : 'left_edge'
 }
 
+export function hashTileCoordinates(
+  row: number,
+  col: number,
+  salt = 0
+): number {
+  let hash = Math.imul(row ^ 0x9e3779b1, 0x85ebca6b) >>> 0
+  hash = (hash + Math.imul(col ^ 0xc2b2ae35, 0x27d4eb2d)) >>> 0
+  hash = (hash + Math.imul(salt ^ 0x165667b1, 0x1b873593)) >>> 0
+  hash ^= hash >>> 15
+  hash = Math.imul(hash, 0x85ebca6b) >>> 0
+  hash ^= hash >>> 13
+  hash = Math.imul(hash, 0xc2b2ae35) >>> 0
+  hash ^= hash >>> 16
+  return hash >>> 0
+}
+
 export function pickDeterministicVariant(
   frames: number[],
   row: number,
@@ -104,6 +120,6 @@ export function pickDeterministicVariant(
 ): number {
   if (frames.length === 0) return -1
   if (frames.length === 1) return frames[0]
-  const hash = (row * 73856093 + col * 19349663) >>> 0
+  const hash = hashTileCoordinates(row, col)
   return frames[hash % frames.length]
 }

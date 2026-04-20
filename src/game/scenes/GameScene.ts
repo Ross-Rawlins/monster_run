@@ -2,6 +2,10 @@ import * as Phaser from 'phaser'
 import { INFINITE_RUNNER_COLORS } from '../../config/colors'
 import { DEBUG_GRID_STYLE } from '../../config/debugGrid'
 import { RUNNER_ASSET_KEYS } from '../../config/keys'
+import {
+  createFullScreenGradientOverlay,
+  type FullScreenGradientOverlayHandle,
+} from '../render/createFullScreenGradientOverlay'
 import { ParallaxBackgroundManager } from '../../managers/ParallaxBackgroundManager'
 import type { Chunk, ChunkLifecycle } from '../../types/tilemaps'
 import {
@@ -54,10 +58,6 @@ const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
 const INTERNAL_DEBUG_TILE_VALUE = 8
 const SEPARATOR_DEBUG_TILE_VALUE = 1
 
-function getIntegerTerrainScale(viewportHeight: number): number {
-  return Math.max(1, Math.floor(viewportHeight / (GRID_HEIGHT * TILE_SIZE_PX)))
-}
-
 interface TileStats {
   empty: number
   ground: number
@@ -82,8 +82,10 @@ export default class GameScene extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key
   private parallaxManager: ParallaxBackgroundManager | null = null
   private debugKey!: Phaser.Input.Keyboard.Key
+  private lightingDebugKey!: Phaser.Input.Keyboard.Key
   private readonly debugChunkOverlays = new Map<number, ChunkDebugOverlay>()
   private runtimeHudText: Phaser.GameObjects.Text | null = null
+  private lightingOverlay: FullScreenGradientOverlayHandle | null = null
   private debugEnabled = false
   private runtimeTileSizePx = TILE_SIZE_PX
   private runtimeTileScale = 1
@@ -120,8 +122,8 @@ export default class GameScene extends Phaser.Scene {
     const sw = this.scale.width
     const sh = this.scale.height
 
-    this.runtimeTileScale = getIntegerTerrainScale(sh)
-    this.runtimeTileSizePx = TILE_SIZE_PX * this.runtimeTileScale
+    this.runtimeTileSizePx = sh / GRID_HEIGHT
+    this.runtimeTileScale = this.runtimeTileSizePx / TILE_SIZE_PX
     this.runtimeChunkWidthPx = GRID_WIDTH * this.runtimeTileSizePx
     this.runtimeChunkHeightPx = GRID_HEIGHT * this.runtimeTileSizePx
     this.playerStartX = this.runtimeTileSizePx * 6
@@ -149,11 +151,14 @@ export default class GameScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     ])
     this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G)
+    this.lightingDebugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
 
     // Optional visual layer while tuning randomization rules.
     if (SHOW_PARALLAX_IMAGES) {
       this.parallaxManager = new ParallaxBackgroundManager(this, sw, sh)
     }
+
+    this.lightingOverlay = createFullScreenGradientOverlay(this, sw, sh)
 
     const playerShape = this.add.rectangle(
       this.playerStartX,
@@ -190,13 +195,18 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD (fixed to camera)
     this.add
-      .text(12, 12, 'Arrows or A/D = Scroll  |  SPACE = Jump  |  G = Grid', {
-        fontSize: '12px',
-        color: '#ffffff',
-      })
+      .text(
+        12,
+        12,
+        'Arrows or A/D = Scroll  |  SPACE = Jump  |  G = Grid  |  L = Gradient Guide',
+        {
+          fontSize: '12px',
+          color: '#ffffff',
+        }
+      )
       .setAlpha(0.6)
       .setScrollFactor(0)
-      .setDepth(200)
+      .setDepth(1100)
 
     this.runtimeHudText = this.add
       .text(12, 30, '', {
@@ -207,7 +217,7 @@ export default class GameScene extends Phaser.Scene {
       })
       .setAlpha(0.9)
       .setScrollFactor(0)
-      .setDepth(201)
+      .setDepth(1101)
 
     this.chunkManager = new ChunkManager((chunk, lifecycle) => {
       this.attachChunk(chunk, lifecycle)
@@ -218,12 +228,15 @@ export default class GameScene extends Phaser.Scene {
       this.parallaxManager?.destroy()
       this.parallaxManager = null
       this.clearDebugOverlay()
+      this.lightingOverlay?.destroy()
+      this.lightingOverlay = null
       this.runtimeHudText?.destroy()
       this.runtimeHudText = null
     })
   }
 
   public update(): void {
+    this.handleLightingOverlayDebugToggle()
     this.updateRuntimeHud()
     this.handleDebugToggle()
 
@@ -250,6 +263,17 @@ export default class GameScene extends Phaser.Scene {
         this.scale.height + this.runtimeTileSizePx * FALL_RECOVERY_BUFFER_TILES
     ) {
       this.recoverPlayerForGenerationTest()
+    }
+  }
+
+  private handleLightingOverlayDebugToggle(): void {
+    if (
+      this.lightingOverlay &&
+      Phaser.Input.Keyboard.JustDown(this.lightingDebugKey)
+    ) {
+      this.lightingOverlay.setDebugGuideVisible(
+        !this.lightingOverlay.isDebugGuideVisible()
+      )
     }
   }
 
