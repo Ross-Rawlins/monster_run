@@ -10,7 +10,7 @@ export const GROUND_GENERATION_CONSTRAINTS: GroundGenerationConstraints = {
   minSegmentLength: 3,
   maxSegmentLength: 6,
   minGapSize: 2,
-  maxGapSize: 7,
+  maxGapSize: 4,
   gapChancePerSegment: 0.3,
   minimumStartingSolidColumns: 8,
 }

@@ -1,9 +1,11 @@
 import type { Tile } from '../game/tilemaps/TileTypes'
+import type { GeneratedObjectPlacement } from '../game/tilemaps/layers/objects/ObjectRules'
 
 export interface LayerBoundaryColumns {
   ground: Tile[]
   platforms: Tile[]
   caves: Tile[]
+  objects?: Tile[]
 }
 
 export type Direction = 'up' | 'down' | 'left' | 'right'
@@ -31,6 +33,8 @@ export interface Cell extends GridPosition {
 export interface Chunk {
   tiles: Tile[][]
   supportTiles: Tile[][]
+  objectAvailabilityGrid?: number[][]
+  objectPlacements?: GeneratedObjectPlacement[]
   collisionTilemapData?: number[][]
   supportVisualTilemapData?: number[][]
   supportForegroundTilemapData?: number[][]

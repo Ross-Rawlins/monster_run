@@ -18,6 +18,7 @@ import {
   isGroundInternalDebugCell,
   isGroundSeparatorCell,
 } from '../tilemaps/layers/ground/GroundRules'
+import { OBJECT_AVAILABILITY_OPEN } from '../tilemaps/layers/objects/ObjectConfig'
 import { resolveCaveCapTopEdgeFrame } from '../tilemaps/layers/caves/CaveRules'
 import {
   COLLIDABLE_TILES,
@@ -50,6 +51,7 @@ const SHOW_PARALLAX_IMAGES = true
 const SHOW_TILE_IMAGES = true
 const SHOW_SUPPORT_BACKDROP_IMAGES = true
 const SHOW_SUPPORT_FOREGROUND_CAPS = false
+const SHOW_OBJECT_AVAILABILITY_DEBUG = false
 const CONTINUOUS_SCROLL_TEST_MODE = false
 const MANUAL_CAMERA_SCROLL_MODE = true
 const FALL_RECOVERY_BUFFER_TILES = 4
@@ -115,6 +117,11 @@ export default class GameScene extends Phaser.Scene {
       RUNNER_ASSET_KEYS.BACKGROUND_ATLAS,
       'assets/background.png',
       'assets/background.json'
+    )
+    this.load.atlas(
+      RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
+      'assets/objects.png',
+      'assets/objects.json'
     )
   }
 
@@ -574,6 +581,16 @@ export default class GameScene extends Phaser.Scene {
 
     const chunkRightEdgePx =
       (lifecycle.chunkIndex + 1) * this.runtimeChunkWidthPx
+    const objectAvailabilityOverlay = SHOW_OBJECT_AVAILABILITY_DEBUG
+      ? this.drawObjectAvailabilityOverlay(
+          chunk,
+          lifecycle.chunkIndex * this.runtimeChunkWidthPx
+        )
+      : null
+    const objectSprites = this.drawChunkObjects(
+      chunk,
+      lifecycle.chunkIndex * this.runtimeChunkWidthPx
+    )
 
     const collider = this.physics.add.collider(this.player, layer)
     const activeChunk: ActiveChunk = {
@@ -584,6 +601,8 @@ export default class GameScene extends Phaser.Scene {
       visualLayer: supportVisualLayer ?? undefined,
       foregroundVisualTilemap: supportForegroundTilemap ?? undefined,
       foregroundVisualLayer: supportForegroundLayer ?? undefined,
+      objectAvailabilityOverlay: objectAvailabilityOverlay ?? undefined,
+      objectSprites,
       collider,
       lifecycle,
       rightEdgePx: chunkRightEdgePx,
@@ -710,7 +729,10 @@ export default class GameScene extends Phaser.Scene {
         null,
         currentChunk.chunk.tiles.map((row) => row[0]),
         null,
-        currentLeftStyle
+        currentLeftStyle,
+        {
+          right: currentChunk.chunk.supportTiles.map((row) => row[0]),
+        }
       )
 
       this.refreshChunkEdgeFrames(
@@ -719,7 +741,12 @@ export default class GameScene extends Phaser.Scene {
         previousChunk.chunk.tiles.map((row) => row[GRID_WIDTH - 1]),
         null,
         previousRightStyle,
-        null
+        null,
+        {
+          left: previousChunk.chunk.supportTiles.map(
+            (row) => row[GRID_WIDTH - 1]
+          ),
+        }
       )
       return
     }
@@ -733,7 +760,11 @@ export default class GameScene extends Phaser.Scene {
     leftNeighborColumn: Tile[] | null,
     rightNeighborColumn: Tile[] | null,
     leftNeighborGroundStyle: number | null = null,
-    rightNeighborGroundStyle: number | null = null
+    rightNeighborGroundStyle: number | null = null,
+    supportNeighbors?: {
+      left?: Tile[] | null
+      right?: Tile[] | null
+    }
   ): void {
     const paddedTiles = activeChunk.chunk.tiles.map((row, rowIndex) => [
       leftNeighborColumn?.[rowIndex] ?? Tile.EMPTY,
@@ -752,6 +783,15 @@ export default class GameScene extends Phaser.Scene {
     const paddedColumn = column + 1
     const styleMinCol = 1
     const styleMaxCol = paddedTiles[0].length - 2
+
+    const supportPaddedTiles = activeChunk.chunk.supportTiles.map(
+      (supportRow, supportRowIndex) => [
+        supportNeighbors?.left?.[supportRowIndex] ?? Tile.EMPTY,
+        ...supportRow,
+        supportNeighbors?.right?.[supportRowIndex] ?? Tile.EMPTY,
+      ]
+    )
+
     for (let row = 0; row < GRID_HEIGHT; row += 1) {
       const frame = getRenderFrameForTileAt(paddedTiles, row, paddedColumn, {
         groundStyleBounds: {
@@ -761,6 +801,28 @@ export default class GameScene extends Phaser.Scene {
         groundStyleByColumn: paddedGroundStyleByColumn,
       })
       activeChunk.layer.putTileAt(frame, column, row, true)
+
+      if (!activeChunk.visualLayer) {
+        continue
+      }
+
+      const supportFrame = getRenderFrameForTileAt(
+        supportPaddedTiles,
+        row,
+        paddedColumn
+      )
+
+      const supportIsCave =
+        activeChunk.chunk.supportTiles[row][column] === Tile.CAVE
+      let finalSupportFrame = TILE_RENDER_INDEX[Tile.EMPTY]
+      if (supportIsCave) {
+        finalSupportFrame = supportFrame
+        if (supportFrame === TILE_RENDER_INDEX[Tile.EMPTY]) {
+          finalSupportFrame = TILE_RENDER_INDEX[Tile.CAVE]
+        }
+      }
+
+      activeChunk.visualLayer.putTileAt(finalSupportFrame, column, row, true)
     }
   }
 
@@ -975,6 +1037,96 @@ export default class GameScene extends Phaser.Scene {
       gridGraphics.moveTo(x, yOffset + 0.5)
       gridGraphics.lineTo(x, yOffset + gridHeight + 0.5)
       gridGraphics.strokePath()
+    }
+  }
+
+  private drawObjectAvailabilityOverlay(
+    chunk: Chunk,
+    chunkOffsetX: number
+  ): Phaser.GameObjects.Graphics {
+    const graphics = this.add.graphics().setDepth(3)
+    const availabilityGrid = chunk.objectAvailabilityGrid
+
+    if (!availabilityGrid) {
+      return graphics
+    }
+
+    graphics.fillStyle(0xff9f1c, 0.55)
+
+    for (let row = 0; row < availabilityGrid.length; row += 1) {
+      for (let col = 0; col < availabilityGrid[row].length; col += 1) {
+        const availabilitySlots = availabilityGrid[row][col]
+        if (availabilitySlots < OBJECT_AVAILABILITY_OPEN) {
+          continue
+        }
+
+        const fillAlpha = Math.min(0.85, 0.35 + availabilitySlots * 0.12)
+        graphics.fillStyle(0xff9f1c, fillAlpha)
+
+        graphics.fillRect(
+          chunkOffsetX + col * this.runtimeTileSizePx,
+          this.chunkOffsetY + row * this.runtimeTileSizePx,
+          this.runtimeTileSizePx,
+          this.runtimeTileSizePx
+        )
+      }
+    }
+
+    return graphics
+  }
+
+  private drawChunkObjects(
+    chunk: Chunk,
+    chunkOffsetX: number
+  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] {
+    const placements = chunk.objectPlacements ?? []
+    const created: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = []
+
+    for (const placement of placements) {
+      try {
+        const depth = placement.renderDepth ?? 4
+        if (placement.animationKey) {
+          this.ensureAnimationExists(placement.animationKey)
+          const sprite = this.add
+            .sprite(
+              chunkOffsetX + placement.col * this.runtimeTileSizePx,
+              this.chunkOffsetY + placement.row * this.runtimeTileSizePx,
+              RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
+              placement.frameKey
+            )
+            .setOrigin(0, 0)
+            .setScale(this.runtimeTileScale)
+            .setDepth(depth)
+
+          if (sprite && typeof sprite.play === 'function') {
+            sprite.play(placement.animationKey)
+          }
+          created.push(sprite)
+        } else {
+          const image = this.add
+            .image(
+              chunkOffsetX + placement.col * this.runtimeTileSizePx,
+              this.chunkOffsetY + placement.row * this.runtimeTileSizePx,
+              RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
+              placement.frameKey
+            )
+            .setOrigin(0, 0)
+            .setScale(this.runtimeTileScale)
+            .setDepth(depth)
+
+          created.push(image)
+        }
+      } catch (error) {
+        console.error('Error creating object sprite:', error, placement)
+      }
+    }
+
+    return created
+  }
+
+  private ensureAnimationExists(animationKey: string): void {
+    if (this.anims.exists(animationKey)) {
+      return
     }
   }
 

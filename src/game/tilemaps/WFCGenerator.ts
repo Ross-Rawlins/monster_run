@@ -10,6 +10,7 @@ import { GroundGenerator } from './layers/ground/GroundGenerator'
 import { PlatformGenerator } from './layers/platforms/PlatformGenerator'
 import { CaveGenerator } from './layers/caves/CaveGenerator'
 import { resolveCaveCapTopEdgeFrame } from './layers/caves/CaveRules'
+import { ObjectGenerator } from './layers/objects/ObjectGenerator'
 import { LayerCompositor } from './compositor/LayerCompositor'
 
 interface GeneratorOptions {
@@ -104,22 +105,74 @@ export class WFCGenerator {
     }
 
     const groundTopStyleByColumn = groundGenerator.getTopStyleByColumn()
+    // Build extended tile grids so boundary columns resolve with accurate neighbours.
+    //
+    // Left edge (col 0): if a seeded left column exists it represents the previous
+    // chunk's rightmost column.  Prepending it as a virtual west column lets the
+    // frame resolver treat col 0 as a continuation tile instead of a left end-cap.
+    //
+    // Right edge (col width-1): the next chunk will seed its col 0 from this
+    // column, so appending the same tile again as a virtual east column makes the
+    // resolver treat col width-1 as a continuation tile from the start, eliminating
+    // the visible right-cap artefact that appeared before the next chunk arrived.
+    const leftExtendedTiles: Tile[][] | null = this.seededLeftColumn
+      ? tiles.map((row, ri) => [this.seededLeftColumn![ri], ...row])
+      : null
+    const leftExtendedStyle: number[] | null =
+      leftExtendedTiles && groundTopStyleByColumn
+        ? [groundTopStyleByColumn[0] ?? 0, ...groundTopStyleByColumn]
+        : null
+
+    const rightBoundaryCol = tiles.map((row) => row[this.width - 1])
+    const rightExtendedTiles: Tile[][] = tiles.map((row, ri) => [
+      ...row,
+      rightBoundaryCol[ri],
+    ])
+    const rightExtendedStyle: number[] | null = groundTopStyleByColumn
+      ? [...groundTopStyleByColumn, groundTopStyleByColumn[this.width - 1] ?? 0]
+      : null
+
     const collisionTilemapData = tiles.map((row, rowIndex) =>
-      row.map((_, colIndex) =>
-        getRenderFrameForTileAt(tiles, rowIndex, colIndex, {
+      row.map((_, colIndex) => {
+        if (colIndex === 0 && leftExtendedTiles) {
+          // Col 0 in extended grid is the virtual west neighbour; resolve at col 1.
+          return getRenderFrameForTileAt(leftExtendedTiles, rowIndex, 1, {
+            groundStyleBounds: { minCol: 1, maxCol: this.width },
+            groundStyleByColumn: leftExtendedStyle ?? undefined,
+          })
+        }
+        if (colIndex === this.width - 1) {
+          // Col width in extended grid is the virtual east neighbour; resolve at col width-1.
+          return getRenderFrameForTileAt(
+            rightExtendedTiles,
+            rowIndex,
+            this.width - 1,
+            {
+              groundStyleBounds: { maxCol: this.width - 1 },
+              groundStyleByColumn: rightExtendedStyle ?? undefined,
+            }
+          )
+        }
+        return getRenderFrameForTileAt(tiles, rowIndex, colIndex, {
           groundStyleByColumn: groundTopStyleByColumn,
         })
-      )
+      })
     )
 
     const supportBackdropTiles = this.buildSupportBackdropTiles(caveLayer)
+    const objectGeneration = new ObjectGenerator(options).generate(tiles)
 
     return {
       tiles,
       supportTiles: caveLayer,
+      objectAvailabilityGrid: objectGeneration.availabilityGrid,
+      objectPlacements: objectGeneration.placements,
       collisionTilemapData,
-      supportVisualTilemapData:
-        this.buildSupportVisualTilemapData(supportBackdropTiles),
+      supportVisualTilemapData: this.buildSupportVisualTilemapData(
+        supportBackdropTiles,
+        this.seededLayerLeftColumns?.caves ?? undefined,
+        caveLayer.map((row) => row[this.width - 1]) as Tile[]
+      ),
       supportForegroundTilemapData: this.buildSupportForegroundTilemapData(
         tiles,
         caveLayer
@@ -147,19 +200,45 @@ export class WFCGenerator {
   }
 
   private buildSupportVisualTilemapData(
-    supportBackdropTiles: Tile[][]
+    supportBackdropTiles: Tile[][],
+    seededLeftCaveColumn?: Tile[],
+    rightBoundaryCaveColumn?: Tile[]
   ): number[][] {
     const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
     const caveFrame = TILE_RENDER_INDEX[Tile.CAVE]
 
+    const leftExtendedTiles: Tile[][] | null = seededLeftCaveColumn
+      ? supportBackdropTiles.map((row, ri) => [
+          seededLeftCaveColumn[ri] ?? Tile.EMPTY,
+          ...row,
+        ])
+      : null
+    const rightExtendedTiles: Tile[][] | null = rightBoundaryCaveColumn
+      ? supportBackdropTiles.map((row, ri) => [
+          ...row,
+          rightBoundaryCaveColumn[ri] ?? Tile.EMPTY,
+        ])
+      : null
+
     return supportBackdropTiles.map((row, rowIndex) =>
       row.map((tile, colIndex) => {
         if (tile !== Tile.CAVE) return emptyFrame
-        const resolved = getRenderFrameForTileAt(
+
+        let resolved = getRenderFrameForTileAt(
           supportBackdropTiles,
           rowIndex,
           colIndex
         )
+        if (colIndex === 0 && leftExtendedTiles) {
+          resolved = getRenderFrameForTileAt(leftExtendedTiles, rowIndex, 1)
+        } else if (colIndex === this.width - 1 && rightExtendedTiles) {
+          resolved = getRenderFrameForTileAt(
+            rightExtendedTiles,
+            rowIndex,
+            this.width - 1
+          )
+        }
+
         return resolved === emptyFrame ? caveFrame : resolved
       })
     )

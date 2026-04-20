@@ -17,6 +17,8 @@ interface ActiveChunk {
   visualLayer?: Phaser.Tilemaps.TilemapLayer
   foregroundVisualTilemap?: Phaser.Tilemaps.Tilemap
   foregroundVisualLayer?: Phaser.Tilemaps.TilemapLayer
+  objectAvailabilityOverlay?: Phaser.GameObjects.Graphics
+  objectSprites?: Phaser.GameObjects.Image[]
   collider: Phaser.Physics.Arcade.Collider
   staticGroup?: Phaser.Physics.Arcade.StaticGroup | null
   lifecycle: ChunkLifecycle
@@ -100,6 +102,8 @@ export class ChunkManager {
       activeChunk.foregroundVisualTilemap?.destroy()
       activeChunk.visualLayer?.destroy()
       activeChunk.visualTilemap?.destroy()
+      activeChunk.objectAvailabilityOverlay?.destroy()
+      activeChunk.objectSprites?.forEach((sprite) => sprite.destroy())
       activeChunk.layer.destroy()
       activeChunk.tilemap.destroy()
     }
@@ -123,6 +127,8 @@ export class ChunkManager {
       activeChunk.foregroundVisualTilemap?.destroy()
       activeChunk.visualLayer?.destroy()
       activeChunk.visualTilemap?.destroy()
+      activeChunk.objectAvailabilityOverlay?.destroy()
+      activeChunk.objectSprites?.forEach((sprite) => sprite.destroy())
       activeChunk.layer.destroy()
       activeChunk.tilemap.destroy()
     }

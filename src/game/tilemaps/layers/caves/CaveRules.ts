@@ -146,7 +146,10 @@ const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
   },
   {
     // Required for row-0 top-center caps (frame 219).
-    matches: [{ N: ['!7', 'OOB'], S: 7, W: 7, E: 7 }],
+    matches: [
+      { N: ['!7', 'OOB'], S: 7, W: 7, E: 7 },
+      { N: ['!7', 'OOB'], S: 7, W: '!7', E: 7 },
+    ],
     frames: [toFrameIndex(219)],
   },
   {
@@ -165,7 +168,7 @@ const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
     frames: [toFrameIndex(227)],
   },
   {
-    matches: [{ N: '7', S: '!7', W: '!7', E: '!7' }],
+    matches: [{ N: '7', S: '!7', W: '!7', E: 7 }],
     frames: [toFrameIndex(232)],
   },
   {
@@ -189,10 +192,7 @@ const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
     frames: [toFrameIndex(238)],
   },
   {
-    matches: [
-      { N: 7, S: 7, W: '!7', E: 7, SW: '!7' },
-      { N: 7, S: '!7', W: '!7', E: 7, SW: '!7' },
-    ],
+    matches: [{ N: 7, S: 7, W: 7, E: 7, SW: '!7', NW: 7 }],
     frames: [toFrameIndex(239)],
   },
 
