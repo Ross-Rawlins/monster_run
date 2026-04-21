@@ -29,6 +29,7 @@ const GROUND_VARIANT_COUNT = 2
 const GROUND_SURFACE_VALUE = 6
 const GROUND_INTERNAL_VALUE = 8
 const GROUND_SEPARATOR_VALUE = 1
+const INTERNAL_GROUND_FALLBACK_FRAME = toFrameIndex(133)
 
 // ─── Bitmask Autotile Table ──────────────────────────────────────────
 // Bitmask layout: NW=1  N=2  NE=4  W=8  E=16  SW=32  S=64  SE=128
@@ -269,12 +270,14 @@ const GROUND_RULES: LayerRule<GroundRuleContext>[] = [
     ],
     frames: [toFrameIndex(78)],
   },
-  // Internal ground section: hide inset cells by emitting -1 (empty tile).
+  // Internal ground section fallback: emit tile 133.
   // Returning null for non-internal cells lets unmatched surface cells reach
   // the unresolvedFrame fallback (tile 79) below.
   {
     resolve: (ctx) =>
-      isGroundInternalDebugCell(ctx.tiles, ctx.row, ctx.col) ? -1 : null,
+      isGroundInternalDebugCell(ctx.tiles, ctx.row, ctx.col)
+        ? INTERNAL_GROUND_FALLBACK_FRAME
+        : null,
   },
 ]
 
@@ -335,6 +338,7 @@ export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
       toFrameIndex(149),
       toFrameIndex(49),
       toFrameIndex(50),
+      INTERNAL_GROUND_FALLBACK_FRAME,
       ...collectAutotileFrames(GROUND_AUTOTILE),
     ])
   )

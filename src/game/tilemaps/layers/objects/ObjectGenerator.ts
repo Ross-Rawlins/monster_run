@@ -18,6 +18,11 @@ export interface ObjectGenerationResult {
   placements: GeneratedObjectPlacement[]
 }
 
+interface ParsedObjectFrameDescriptor {
+  atlasSize: string
+  index: number
+}
+
 type SpiderCornerSurface =
   | 'ground_internal_corner_nw'
   | 'ground_internal_corner_ne'
@@ -114,19 +119,47 @@ export class ObjectGenerator {
       return
     }
 
-    let objectRow = row
-    if (rule.surface === 'ground_top' || rule.surface === 'platform_top') {
-      objectRow = row - rule.footprint.height
-    } else if (rule.surface === 'platform_under') {
-      objectRow = row + 1
-    }
+    const objectRow = this.resolveObjectRow(row, rule.surface, rule.footprint.height)
 
     if (objectRow < 0 || objectRow >= this.height) {
       return
     }
 
     if (
-      this.isColRangeOccupied(placements, objectRow, col, rule.footprint.width)
+      this.isPlacementOccupied(
+        placements,
+        objectRow,
+        col,
+        rule.footprint.width,
+        rule.footprint.height
+      )
+    ) {
+      return
+    }
+
+    if (
+      this.violatesPlacementSpacing(
+        placements,
+        objectRow,
+        col,
+        rule.footprint.width,
+        rule.footprint.height,
+        rule.minSpacingTiles?.horizontal ?? 0,
+        rule.minSpacingTiles?.vertical ?? 0
+      )
+    ) {
+      return
+    }
+
+    if (
+      this.violatesBlockedAdjacentAtlasSizes(
+        placements,
+        objectRow,
+        col,
+        rule.footprint.width,
+        rule.footprint.height,
+        rule.blockedAdjacentAtlasSizes ?? []
+      )
     ) {
       return
     }
@@ -134,6 +167,19 @@ export class ObjectGenerator {
     if (
       rule.footprint.width > 1 &&
       !this.hasConsecutiveSurfaceAt(
+        terrainTiles,
+        row,
+        col,
+        rule.footprint.width,
+        rule.surface
+      )
+    ) {
+      return
+    }
+
+    if (
+      rule.requireInteriorSupportSurface &&
+      this.touchesSupportSurfaceEdge(
         terrainTiles,
         row,
         col,
@@ -166,8 +212,11 @@ export class ObjectGenerator {
       frameKey,
       animationKey: rule.animation?.key,
       renderDepth: rule.renderDepth,
+      renderYOffsetPx: rule.renderYOffsetPx,
       footprintWidth:
         rule.footprint.width > 1 ? rule.footprint.width : undefined,
+      footprintHeight:
+        rule.footprint.height > 1 ? rule.footprint.height : undefined,
     })
   }
 
@@ -233,21 +282,148 @@ export class ObjectGenerator {
     return true
   }
 
-  private isColRangeOccupied(
+  private touchesSupportSurfaceEdge(
+    terrainTiles: ReadonlyArray<ReadonlyArray<Tile>>,
+    surfaceRow: number,
+    col: number,
+    width: number,
+    surface: ObjectPlacementSurface
+  ): boolean {
+    if (surface !== 'ground_top' && surface !== 'platform_top') {
+      return false
+    }
+
+    const supportTile = terrainTiles[surfaceRow]?.[col]
+    if (supportTile !== Tile.GROUND && supportTile !== Tile.PLATFORM) {
+      return true
+    }
+
+    const leftCol = col - 1
+    const rightCol = col + width
+    const leftTile =
+      leftCol >= 0 ? terrainTiles[surfaceRow]?.[leftCol] : Tile.EMPTY
+    const rightTile =
+      rightCol < this.width ? terrainTiles[surfaceRow]?.[rightCol] : Tile.EMPTY
+
+    return leftTile !== supportTile || rightTile !== supportTile
+  }
+
+  private isPlacementOccupied(
     placements: ReadonlyArray<GeneratedObjectPlacement>,
     row: number,
     col: number,
-    width: number
+    width: number,
+    height: number
   ): boolean {
+    const candidateMinCol = col
+    const candidateMaxCol = col + width - 1
+    const candidateMinRow = row
+    const candidateMaxRow = row + height - 1
+
     for (const placement of placements) {
-      if (placement.row !== row) {
+      const placementWidth = placement.footprintWidth ?? 1
+      const placementHeight = placement.footprintHeight ?? 1
+      const placementMinCol = placement.col
+      const placementMaxCol = placement.col + placementWidth - 1
+      const placementMinRow = placement.row
+      const placementMaxRow = placement.row + placementHeight - 1
+
+      const overlapsHorizontally =
+        candidateMinCol <= placementMaxCol && candidateMaxCol >= placementMinCol
+      const overlapsVertically =
+        candidateMinRow <= placementMaxRow && candidateMaxRow >= placementMinRow
+      const overlaps = overlapsHorizontally && overlapsVertically
+
+      if (overlaps) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private violatesPlacementSpacing(
+    placements: ReadonlyArray<GeneratedObjectPlacement>,
+    row: number,
+    col: number,
+    width: number,
+    height: number,
+    horizontalSpacing: number,
+    verticalSpacing: number
+  ): boolean {
+    if (horizontalSpacing <= 0 && verticalSpacing <= 0) {
+      return false
+    }
+
+    const candidateMinCol = col - horizontalSpacing
+    const candidateMaxCol = col + width - 1 + horizontalSpacing
+    const candidateMinRow = row - verticalSpacing
+    const candidateMaxRow = row + height - 1 + verticalSpacing
+
+    for (const placement of placements) {
+      const placementWidth = placement.footprintWidth ?? 1
+      const placementHeight = placement.footprintHeight ?? 1
+      const placementMinCol = placement.col
+      const placementMaxCol = placement.col + placementWidth - 1
+      const placementMinRow = placement.row
+      const placementMaxRow = placement.row + placementHeight - 1
+
+      const overlapsHorizontally =
+        candidateMinCol <= placementMaxCol && candidateMaxCol >= placementMinCol
+      const overlapsVertically =
+        candidateMinRow <= placementMaxRow && candidateMaxRow >= placementMinRow
+
+      if (overlapsHorizontally && overlapsVertically) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private violatesBlockedAdjacentAtlasSizes(
+    placements: ReadonlyArray<GeneratedObjectPlacement>,
+    row: number,
+    col: number,
+    width: number,
+    height: number,
+    blockedAdjacentAtlasSizes: ReadonlyArray<string>
+  ): boolean {
+    if (blockedAdjacentAtlasSizes.length === 0) {
+      return false
+    }
+
+    const candidateMinCol = col
+    const candidateMaxCol = col + width - 1
+    const candidateMinRow = row
+    const candidateMaxRow = row + height - 1
+
+    for (const placement of placements) {
+      const descriptor = this.parseFrameDescriptor(placement.frameKey)
+      if (!descriptor) {
+        continue
+      }
+
+      if (!blockedAdjacentAtlasSizes.includes(descriptor.atlasSize)) {
         continue
       }
 
       const placementWidth = placement.footprintWidth ?? 1
-      const overlaps =
-        col < placement.col + placementWidth && col + width > placement.col
-      if (overlaps) {
+      const placementHeight = placement.footprintHeight ?? 1
+      const placementMinCol = placement.col
+      const placementMaxCol = placement.col + placementWidth - 1
+      const placementMinRow = placement.row
+      const placementMaxRow = placement.row + placementHeight - 1
+
+      const overlapsVertically =
+        candidateMinRow <= placementMaxRow && candidateMaxRow >= placementMinRow
+      if (!overlapsVertically) {
+        continue
+      }
+
+      const touchesOnLeft = candidateMaxCol + 1 === placementMinCol
+      const touchesOnRight = placementMaxCol + 1 === candidateMinCol
+      if (touchesOnLeft || touchesOnRight) {
         return true
       }
     }
@@ -260,7 +436,7 @@ export class ObjectGenerator {
     row: number,
     col: number
   ): boolean {
-    return this.isColRangeOccupied(placements, row, col, 1)
+    return this.isPlacementOccupied(placements, row, col, 1, 1)
   }
 
   private isSpiderCornerRule(surface: ObjectPlacementSurface): boolean {
@@ -345,6 +521,7 @@ export class ObjectGenerator {
       col: candidate.col,
       frameKey,
       animationKey: rule.animation?.key,
+      renderYOffsetPx: rule.renderYOffsetPx,
     })
     availability[candidate.row][candidate.col] = this.bumpAvailability(
       availability[candidate.row][candidate.col],
@@ -353,12 +530,16 @@ export class ObjectGenerator {
   }
 
   private isSpiderWebFrameKey(frameKey: string): boolean {
-    const frameIndex = this.parseFrameIndex(frameKey)
-    if (frameIndex === null) {
+    const descriptor = this.parseFrameDescriptor(frameKey)
+    if (!descriptor) {
       return false
     }
 
-    return [15, 16, 17, 18, 19, 20].includes(frameIndex)
+    if (descriptor.atlasSize !== '16x16') {
+      return false
+    }
+
+    return [15, 16, 17, 18, 19, 20].includes(descriptor.index)
   }
 
   private pickFrameKey(
@@ -417,12 +598,18 @@ export class ObjectGenerator {
       return []
     }
 
+    const ruleAtlasSize = this.getRuleAtlasSize(rule)
     const neighborIndices = this.getNeighborFrameIndices(placements, row, col)
     const allowed: number[] = []
 
     for (const index of frameCandidates) {
       const blocked = neighborIndices.some((neighborIndex) =>
-        this.formsBlockedAdjacentPair(index, neighborIndex)
+        this.formsBlockedAdjacentPair(
+          index,
+          ruleAtlasSize,
+          neighborIndex.index,
+          neighborIndex.atlasSize
+        )
       )
 
       if (
@@ -467,8 +654,8 @@ export class ObjectGenerator {
     placements: ReadonlyArray<GeneratedObjectPlacement>,
     row: number,
     col: number
-  ): number[] {
-    const indices: number[] = []
+  ): ParsedObjectFrameDescriptor[] {
+    const indices: ParsedObjectFrameDescriptor[] = []
 
     for (const placement of placements) {
       if (placement.row !== row) {
@@ -479,25 +666,40 @@ export class ObjectGenerator {
         continue
       }
 
-      const frameIndex = this.parseFrameIndex(placement.frameKey)
-      if (frameIndex !== null) {
-        indices.push(frameIndex)
+      const descriptor = this.parseFrameDescriptor(placement.frameKey)
+      if (descriptor) {
+        indices.push(descriptor)
       }
     }
 
     return indices
   }
 
-  private parseFrameIndex(frameKey: string): number | null {
-    const match = /_(\d+)\.png$/.exec(frameKey)
+  private parseFrameDescriptor(
+    frameKey: string
+  ): ParsedObjectFrameDescriptor | null {
+    const match = /^(\d+x\d+)\/Objects_\1_Seperated_(\d+)\.png$/.exec(frameKey)
     if (!match) {
       return null
     }
 
-    return Number.parseInt(match[1], 10)
+    return {
+      atlasSize: match[1],
+      index: Number.parseInt(match[2], 10),
+    }
   }
 
-  private formsBlockedAdjacentPair(left: number, right: number): boolean {
+  private formsBlockedAdjacentPair(
+    left: number,
+    leftAtlasSize: string,
+    right: number,
+    rightAtlasSize: string
+  ): boolean {
+    // Adjacency exclusions are authored for 16x16 clutter/web sets only.
+    if (leftAtlasSize !== '16x16' || rightAtlasSize !== '16x16') {
+      return false
+    }
+
     const inHighBand = this.inRange(left, 39, 50) && this.inRange(right, 39, 50)
     if (inHighBand) {
       return true
@@ -523,6 +725,10 @@ export class ObjectGenerator {
     sourceRow: number,
     col: number
   ): boolean {
+    if (this.getRuleAtlasSize(rule) !== '16x16') {
+      return false
+    }
+
     const isRestrictedFrame = this.inRange(frameIndex, 21, 24)
     if (!isRestrictedFrame) {
       return false
@@ -717,6 +923,10 @@ export class ObjectGenerator {
     return min + Math.floor(this.random() * (max - min + 1))
   }
 
+  private getRuleAtlasSize(rule: ObjectRuleDefinition): string {
+    return rule.atlasSize ?? '16x16'
+  }
+
   private isGroundTopCell(
     terrainTiles: ReadonlyArray<ReadonlyArray<Tile>>,
     row: number,
@@ -791,6 +1001,22 @@ export class ObjectGenerator {
     }
 
     return !this.isGroundInternalCandidate(terrainTiles, row - 1, col)
+  }
+
+  private resolveObjectRow(
+    anchorRow: number,
+    surface: ObjectPlacementSurface,
+    footprintHeight: number
+  ): number {
+    if (surface === 'ground_top' || surface === 'platform_top') {
+      return anchorRow - footprintHeight
+    }
+
+    if (surface === 'platform_under') {
+      return anchorRow + 1
+    }
+
+    return anchorRow
   }
 
   private isGroundInternalNorthWestCornerAnchorCell(

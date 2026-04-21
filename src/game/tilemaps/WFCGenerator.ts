@@ -7,9 +7,10 @@ import {
   getRenderFrameForTileAt,
 } from './TileTypes'
 import { GroundGenerator } from './layers/ground/GroundGenerator'
+import { isGroundInternalDebugCell } from './layers/ground/GroundRules'
 import { PlatformGenerator } from './layers/platforms/PlatformGenerator'
 import { CaveGenerator } from './layers/caves/CaveGenerator'
-import { resolveCaveCapTopEdgeFrame } from './layers/caves/CaveRules'
+import { caveRules } from './layers/caves/CaveRules'
 import { ObjectGenerator } from './layers/objects/ObjectGenerator'
 import { LayerCompositor } from './compositor/LayerCompositor'
 
@@ -94,6 +95,9 @@ export class WFCGenerator {
     const platformLayer = result.layers.get('platforms')!
     const caveLayer = result.layers.get('caves')!
 
+    // Pass ground layer to cave rules so they can check internal ground sections
+    caveRules.setGroundTiles(groundLayer)
+
     // Merge ground and platform into a single terrain grid for the existing Chunk interface.
     const tiles = this.mergeLayers([groundLayer, platformLayer])
 
@@ -174,7 +178,7 @@ export class WFCGenerator {
         caveLayer.map((row) => row[this.width - 1]) as Tile[]
       ),
       supportForegroundTilemapData: this.buildSupportForegroundTilemapData(
-        tiles,
+        groundLayer,
         caveLayer
       ),
       rightColumn: tiles.map((row) => row[this.width - 1]),
@@ -245,23 +249,35 @@ export class WFCGenerator {
   }
 
   private buildSupportForegroundTilemapData(
-    tiles: Tile[][],
+    groundLayer: Tile[][],
     caveLayer: Tile[][]
   ): number[][] {
     const emptyFrame = TILE_RENDER_INDEX[Tile.EMPTY]
+    const caveFrame = TILE_RENDER_INDEX[Tile.CAVE]
 
     return caveLayer.map((row, rowIndex) =>
       row.map((supportTile, colIndex) => {
         if (supportTile !== Tile.CAVE) return emptyFrame
-        if (tiles[rowIndex][colIndex] !== Tile.GROUND) return emptyFrame
-        if (rowIndex > 0 && tiles[rowIndex - 1][colIndex] !== Tile.EMPTY) {
-          return emptyFrame
+
+        // Internal-ground caves should render in front of terrain so the
+        // cave silhouette remains visible over the internal fallback fill.
+        if (
+          groundLayer[rowIndex][colIndex] === Tile.GROUND &&
+          isGroundInternalDebugCell(
+            groundLayer as number[][],
+            rowIndex,
+            colIndex
+          )
+        ) {
+          const resolved = getRenderFrameForTileAt(
+            caveLayer as number[][],
+            rowIndex,
+            colIndex
+          )
+          return resolved === emptyFrame ? caveFrame : resolved
         }
-        return resolveCaveCapTopEdgeFrame(
-          caveLayer as number[][],
-          rowIndex,
-          colIndex
-        )
+
+        return emptyFrame
       })
     )
   }

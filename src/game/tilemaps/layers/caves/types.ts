@@ -17,4 +17,6 @@ export type CaveSignature =
   | 'bottom_center'
   | 'bottom_right'
 
-export interface CaveRuleContext extends BaseRuleContext {}
+export interface CaveRuleContext extends BaseRuleContext {
+  groundClassificationGrid?: number[][]
+}

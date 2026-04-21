@@ -51,12 +51,14 @@ const SHOW_PARALLAX_IMAGES = true
 const SHOW_TILE_IMAGES = true
 const SHOW_SUPPORT_BACKDROP_IMAGES = true
 const SHOW_SUPPORT_FOREGROUND_CAPS = false
+const SHOW_SUPPORT_FOREGROUND_INTERNAL_CAVES = true
 const SHOW_OBJECT_AVAILABILITY_DEBUG = false
 const CONTINUOUS_SCROLL_TEST_MODE = false
 const MANUAL_CAMERA_SCROLL_MODE = true
 const FALL_RECOVERY_BUFFER_TILES = 4
 const CONTINUOUS_SCROLL_SPEED_PX = 180
 const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
+const OBJECT_MIN_DEPTH = 5
 const INTERNAL_DEBUG_TILE_VALUE = 8
 const SEPARATOR_DEBUG_TILE_VALUE = 1
 
@@ -452,10 +454,11 @@ export default class GameScene extends Phaser.Scene {
         this.buildSupportVisualTilemapDataFallback(chunk))
       : null
 
-    const supportForegroundTilemapData = SHOW_SUPPORT_FOREGROUND_CAPS
-      ? (chunk.supportForegroundTilemapData ??
-        this.buildSupportForegroundTilemapDataFallback(chunk))
-      : null
+    const supportForegroundTilemapData =
+      SHOW_SUPPORT_FOREGROUND_CAPS || SHOW_SUPPORT_FOREGROUND_INTERNAL_CAVES
+        ? (chunk.supportForegroundTilemapData ??
+          this.buildSupportForegroundTilemapDataFallback(chunk))
+        : null
 
     const tilemap = this.make.tilemap({
       data: collisionTilemapData,
@@ -574,9 +577,7 @@ export default class GameScene extends Phaser.Scene {
     if (supportForegroundLayer) {
       supportForegroundLayer.setDepth(2)
       supportForegroundLayer.setScale(this.runtimeTileScale)
-      supportForegroundLayer.setVisible(
-        SHOW_TILE_IMAGES && SHOW_SUPPORT_FOREGROUND_CAPS
-      )
+      supportForegroundLayer.setVisible(SHOW_TILE_IMAGES)
     }
 
     const chunkRightEdgePx =
@@ -1084,13 +1085,18 @@ export default class GameScene extends Phaser.Scene {
 
     for (const placement of placements) {
       try {
-        const depth = placement.renderDepth ?? 4
+        const depth = Math.max(placement.renderDepth ?? 4, OBJECT_MIN_DEPTH)
+        const yOffsetPx =
+          placement.renderYOffsetPx ??
+          (placement.frameKey.startsWith('64x96/') ? 1 : 0)
         if (placement.animationKey) {
           this.ensureAnimationExists(placement.animationKey)
           const sprite = this.add
             .sprite(
               chunkOffsetX + placement.col * this.runtimeTileSizePx,
-              this.chunkOffsetY + placement.row * this.runtimeTileSizePx,
+              this.chunkOffsetY +
+                placement.row * this.runtimeTileSizePx +
+                yOffsetPx,
               RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
               placement.frameKey
             )
@@ -1106,7 +1112,9 @@ export default class GameScene extends Phaser.Scene {
           const image = this.add
             .image(
               chunkOffsetX + placement.col * this.runtimeTileSizePx,
-              this.chunkOffsetY + placement.row * this.runtimeTileSizePx,
+              this.chunkOffsetY +
+                placement.row * this.runtimeTileSizePx +
+                yOffsetPx,
               RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
               placement.frameKey
             )

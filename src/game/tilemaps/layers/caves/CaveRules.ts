@@ -11,9 +11,15 @@ import {
   classifyHorizontalRole,
   getHorizontalNeighborState,
 } from '../../rules/neighbors'
+import {
+  COMPASS_DIRECTION_DELTAS,
+  type CompassDirection,
+} from '../../utils/CompassRuleEngine'
 import { toFrameIndex } from '../../utils/frameIndex'
 import { BaseLayerRules } from '../base/BaseLayerRules'
 import { CAVE_GENERATION_CONSTRAINTS, TILE_CAVE } from './CaveConfig'
+import { isGroundInternalDebugCell } from '../ground/GroundInternalDebug'
+import { TILE_GROUND } from '../ground/GroundConfig'
 import type {
   CaveGenerationConstraints,
   CaveRuleContext,
@@ -40,6 +46,91 @@ function isCaveAt(tiles: number[][], row: number, col: number): boolean {
   if (row < 0 || row >= tiles.length) return false
   if (col < 0 || col >= tiles[row].length) return false
   return tiles[row][col] === TILE_CAVE
+}
+// Ground classification values:
+// 6 = surface ground (distance < 2 from boundary)
+// 8 = internal ground (distance ≥ 2)
+// 7 = cave tile
+// 0 = non-ground
+
+const groundClassificationCache = new WeakMap<number[][], number[][]>()
+
+function buildGroundClassificationGrid(groundTiles: number[][]): number[][] {
+  const rows = groundTiles.length
+  const cols = groundTiles[0].length
+  const grid: number[][] = Array.from(
+    { length: rows },
+    () => new Array<number>(cols)
+  )
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const tile = groundTiles[row][col]
+      if (tile !== TILE_GROUND) {
+        grid[row][col] = tile
+      } else if (isGroundInternalDebugCell(groundTiles, row, col)) {
+        grid[row][col] = 8
+      } else {
+        grid[row][col] = 6
+      }
+    }
+  }
+
+  return grid
+}
+
+function getGroundClassificationGrid(groundTiles: number[][]): number[][] {
+  let grid = groundClassificationCache.get(groundTiles)
+  if (!grid) {
+    grid = buildGroundClassificationGrid(groundTiles)
+    groundClassificationCache.set(groundTiles, grid)
+  }
+  return grid
+}
+
+// Ground-internal boundary rule spec mirrors the existing declarative match
+// object (same compass keys: N, S, E, W, NE, NW, SE, SW) plus a frame number.
+// The ground classification grid is used for all direction lookups so ground
+// surface (6), internal (8), cave (7), and empty (0) are all visible.
+type GroundBoundarySpec = Partial<Record<CompassDirection, number>> & {
+  frame: number
+}
+
+function createGroundInternalBoundaryRule(
+  spec: GroundBoundarySpec
+): LayerRule<CaveRuleContext> {
+  const { frame, ...directions } = spec
+  const checks = Object.entries(directions) as [CompassDirection, number][]
+
+  return {
+    matches: { C: 7 },
+    resolve: (context: CaveRuleContext) => {
+      if (!context.groundClassificationGrid) return null
+
+      const { row, col } = context
+      const grid = context.groundClassificationGrid
+
+      // A position can have both GROUND (6/8) in groundLayer AND CAVE (7) in
+      // caveLayer simultaneously (caves extend through ground rows). The lookup
+      // layer must therefore depend on the expected value: cave checks (7) read
+      // from context.tiles (caveLayer); ground classification checks (6/8) read
+      // from the classification grid.
+      const getCellValue = (r: number, c: number, expected: number): number => {
+        if (expected === 7) {
+          return context.tiles[r]?.[c] ?? -1
+        }
+        return grid[r]?.[c] ?? -1
+      }
+
+      for (const [dir, expected] of checks) {
+        const { dr, dc } = COMPASS_DIRECTION_DELTAS[dir]
+        const actual = getCellValue(row + dr, col + dc, expected)
+        if (actual !== expected) return null
+      }
+
+      return toFrameIndex(frame)
+    },
+  }
 }
 
 function classifyCaveSignature(
@@ -137,6 +228,29 @@ export function resolveCaveCapTopEdgeFrame(
 // variants = grouped style sets (selected by variantSeed, then hashed within set)
 
 const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
+  // ═══ Ground-Cave boundary (internal ground section) ═════════════════
+  // These must come FIRST — declarative rules below match the same cells
+  // (e.g. W:'!7', E:7, N:7) and would fire before the resolver gets a turn.
+  createGroundInternalBoundaryRule({
+    W: 6,
+    E: 8,
+    N: 7,
+    frame: 272,
+  }),
+  createGroundInternalBoundaryRule({
+    W: 8,
+    E: 6,
+    N: 7,
+    frame: 273,
+  }),
+  createGroundInternalBoundaryRule({
+    S: 8,
+    N: 6,
+    W: 7,
+    E: 7,
+    frame: 266,
+  }),
+
   // // ═══ Single-row (1-tall) ═══════════════════════════════════════════
 
   {
@@ -205,8 +319,16 @@ const CAVE_RULES: LayerRule<CaveRuleContext>[] = [
 
 // ─── Frame resolution ────────────────────────────────────────────────
 
+// Frames produced by resolver rules (ResolverRule has no `frames` array so
+// collectDeclarativeRuleFrames won't find them — register them explicitly).
+const CAVE_RESOLVER_FRAMES: number[] = [
+  toFrameIndex(272),
+  toFrameIndex(273),
+  toFrameIndex(266),
+]
+
 export function getCaveRuleFrameIndices(_collisionOnly = false): number[] {
-  return collectDeclarativeRuleFrames(CAVE_RULES)
+  return [...collectDeclarativeRuleFrames(CAVE_RULES), ...CAVE_RESOLVER_FRAMES]
 }
 
 // ─── BaseLayerRules Implementation ───────────────────────────────────
@@ -219,9 +341,14 @@ export class CaveRulesImpl extends BaseLayerRules<
   readonly tileId = TILE_CAVE
 
   protected readonly rules = CAVE_RULES
+  private groundTiles: number[][] | null = null
 
   protected get resolveOptions() {
     return { unresolvedFrame: -1 }
+  }
+
+  setGroundTiles(groundTiles: number[][]): void {
+    this.groundTiles = groundTiles
   }
 
   protected buildContext(
@@ -230,13 +357,21 @@ export class CaveRulesImpl extends BaseLayerRules<
     fallbackFrame: number,
     tiles: number[][]
   ): CaveRuleContext {
-    return {
+    const context: CaveRuleContext = {
       tiles,
       row,
       col,
       fallbackFrame,
       variantSeed: row * 73856093 + col * 19349663,
     }
+
+    if (this.groundTiles) {
+      context.groundClassificationGrid = getGroundClassificationGrid(
+        this.groundTiles
+      )
+    }
+
+    return context
   }
 
   getFrameIndices(collisionOnly?: boolean): number[] {
