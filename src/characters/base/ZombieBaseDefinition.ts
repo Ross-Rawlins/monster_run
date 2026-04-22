@@ -39,7 +39,7 @@ export abstract class ZombieBaseDefinition extends AbstractCharacterDefinition {
     width: 26,
     height: 56,
     offsetX: 19,
-    offsetY: 4,
+    offsetY: -8,
   }
 
   get bodyProfiles() {

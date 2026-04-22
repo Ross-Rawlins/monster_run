@@ -321,9 +321,7 @@ export function resolveGroundTileFrame(
   })
 }
 
-export function getGroundRuleFrameIndices(collisionOnly = false): number[] {
-  if (collisionOnly) return []
-
+export function getGroundRuleFrameIndices(_collisionOnly = false): number[] {
   return Array.from(
     new Set([
       ...collectDeclarativeRuleFrames(GROUND_RULES),

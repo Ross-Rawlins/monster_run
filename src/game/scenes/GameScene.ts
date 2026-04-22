@@ -31,6 +31,9 @@ import {
   TILE_RENDER_INDEX,
   TILE_SIZE_PX,
 } from '../tilemaps/TileTypes'
+import { ZombieSpawner } from '../characters/ZombieSpawner'
+import { CharacterRegistry } from '../../characters/CharacterRegistry'
+import { registerCharacterAnimations } from '../../characters/registerCharacterAnimations'
 
 const PLAYER_START_X = TILE_SIZE_PX * 6
 const PLAYER_WIDTH = 12
@@ -61,6 +64,10 @@ const MANUAL_CAMERA_SCROLL_SPEED_PX = 420
 const OBJECT_MIN_DEPTH = 5
 const INTERNAL_DEBUG_TILE_VALUE = 8
 const SEPARATOR_DEBUG_TILE_VALUE = 1
+const COLLISION_DEBUG_CELL_COLOR = 0x00e5ff
+const COLLISION_DEBUG_CELL_ALPHA = 0.16
+const COLLISION_TOP_EDGE_COLOR = 0x00fff0
+const COLLISION_TOP_EDGE_ALPHA = 0.95
 
 interface TileStats {
   empty: number
@@ -90,7 +97,7 @@ export default class GameScene extends Phaser.Scene {
   private readonly debugChunkOverlays = new Map<number, ChunkDebugOverlay>()
   private runtimeHudText: Phaser.GameObjects.Text | null = null
   private lightingOverlay: FullScreenGradientOverlayHandle | null = null
-  private debugEnabled = false
+  private debugEnabled = true
   private runtimeTileSizePx = TILE_SIZE_PX
   private runtimeTileScale = 1
   private runtimeChunkWidthPx = GRID_WIDTH * TILE_SIZE_PX
@@ -108,6 +115,7 @@ export default class GameScene extends Phaser.Scene {
   private lastAttachDurationMs = 0
   private averageAttachDurationMs = 0
   private attachedChunkCount = 0
+  private zombieSpawner!: ZombieSpawner
 
   constructor() {
     super('GAME_SCENE')
@@ -125,6 +133,17 @@ export default class GameScene extends Phaser.Scene {
       'assets/objects.png',
       'assets/objects.json'
     )
+
+    // Load NPC character spritesheets — GameScene runs standalone (no BootScene),
+    // so all character assets must be loaded here.
+    for (const def of CharacterRegistry.getAll()) {
+      if (!this.textures.exists(def.sheetKey)) {
+        this.load.spritesheet(def.sheetKey, def.texturePath, {
+          frameWidth: def.frameWidth,
+          frameHeight: def.frameHeight,
+        })
+      }
+    }
   }
 
   public create(): void {
@@ -232,8 +251,15 @@ export default class GameScene extends Phaser.Scene {
       this.attachChunk(chunk, lifecycle)
     })
 
+    // Register NPC animations — must run after preload but before spawners.
+    for (const def of CharacterRegistry.getAll()) {
+      registerCharacterAnimations(this.anims, def)
+    }
+
+    this.zombieSpawner = new ZombieSpawner(this)
     this.events.once('shutdown', () => {
       this.chunkManager.destroy()
+      this.zombieSpawner.destroy()
       this.parallaxManager?.destroy()
       this.parallaxManager = null
       this.clearDebugOverlay()
@@ -264,6 +290,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.updateChunkStreaming()
+    this.zombieSpawner.update()
     this.syncDebugOverlayWithActiveChunks()
 
     if (
@@ -352,6 +379,7 @@ export default class GameScene extends Phaser.Scene {
       cameraScrollX - this.runtimeChunkWidthPx * CHUNK_CLEANUP_BEHIND
     )
     this.chunkManager.destroyStaleChunks(cleanupBoundaryX)
+    this.zombieSpawner.destroyZombiesBefore(cleanupBoundaryX)
 
     const triggerX = Math.max(
       this.player.x,
@@ -619,6 +647,15 @@ export default class GameScene extends Phaser.Scene {
     if (!this.hasPlacedSpawn) {
       this.placePlayerSpawn(chunk)
     }
+
+    this.zombieSpawner.spawnForChunk(
+      chunk,
+      lifecycle.chunkIndex,
+      lifecycle.chunkIndex * this.runtimeChunkWidthPx,
+      this.chunkOffsetY,
+      this.runtimeTileSizePx,
+      layer
+    )
 
     if (lifecycle.chunkIndex + 1 > MAX_ACTIVE_CHUNKS) {
       console.debug(
@@ -1155,6 +1192,9 @@ export default class GameScene extends Phaser.Scene {
         const resolvedFrame =
           activeChunk.layer.getTileAt(col, row, true)?.index ??
           TILE_RENDER_INDEX[Tile.EMPTY]
+        const collisionTile = activeChunk.layer.getTileAt(col, row, true)
+        const isCollidableCell = collisionTile?.collides ?? false
+        const hasTopCollisionFace = collisionTile?.faceTop ?? false
         const isUnresolvedTile =
           tile !== Tile.EMPTY && resolvedFrame === TILE_RENDER_INDEX[Tile.EMPTY]
 
@@ -1194,9 +1234,15 @@ export default class GameScene extends Phaser.Scene {
           effectiveTile,
           effectiveUnresolved,
           isInternalDebugCell,
-          xOffset + col * cellSize,
-          yOffset + row * cellSize,
-          cellSize
+          {
+            isCollidableCell,
+            hasTopCollisionFace,
+          },
+          {
+            x: xOffset + col * cellSize,
+            y: yOffset + row * cellSize,
+            cellSize,
+          }
         )
 
         if (SHOW_DEBUG_LABELS && labelText !== '') {
@@ -1248,10 +1294,42 @@ export default class GameScene extends Phaser.Scene {
     tile: Tile,
     isUnresolvedTile: boolean,
     isInternalDebugCell: boolean,
-    x: number,
-    y: number,
-    cellSize: number
+    collisionDebug: {
+      isCollidableCell: boolean
+      hasTopCollisionFace: boolean
+    },
+    cellGeometry: {
+      x: number
+      y: number
+      cellSize: number
+    }
   ): void {
+    const { isCollidableCell, hasTopCollisionFace } = collisionDebug
+    const { x, y, cellSize } = cellGeometry
+
+    if (isCollidableCell) {
+      this.fillDebugCell(
+        fillGraphics,
+        COLLISION_DEBUG_CELL_COLOR,
+        COLLISION_DEBUG_CELL_ALPHA,
+        x,
+        y,
+        cellSize
+      )
+    }
+
+    if (hasTopCollisionFace) {
+      fillGraphics.lineStyle(
+        Math.max(1, Math.round(cellSize * 0.08)),
+        COLLISION_TOP_EDGE_COLOR,
+        COLLISION_TOP_EDGE_ALPHA
+      )
+      fillGraphics.beginPath()
+      fillGraphics.moveTo(x + 1, y + 1)
+      fillGraphics.lineTo(x + cellSize - 1, y + 1)
+      fillGraphics.strokePath()
+    }
+
     if (isInternalDebugCell) {
       this.fillDebugCell(
         fillGraphics,
