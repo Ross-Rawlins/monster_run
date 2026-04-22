@@ -35,10 +35,10 @@ export class SkeletonCharacterActor extends Phaser.Physics.Arcade.Sprite {
   private static readonly BODY_DEBUG_COLOR = 0x00e5ff
   private static readonly BODY_DEBUG_ALPHA = 1
   private static readonly WORLD_RENDER_DEPTH = 20
-  private static readonly CHASE_SPEED_MULTIPLIER = 0.62
-  private static readonly JUMP_VELOCITY_MULTIPLIER = 0.72
-  private static readonly GAP_LOOKAHEAD_TILES = 0.9
-  private static readonly JUMP_COOLDOWN_FRAMES = 90
+  private static readonly CHASE_SPEED_MULTIPLIER = 0.38
+  private static readonly JUMP_VELOCITY_MULTIPLIER = 0.46
+  private static readonly GAP_LOOKAHEAD_TILES = 0.55
+  private static readonly JUMP_COOLDOWN_FRAMES = 150
 
   private readonly definition: AbstractCharacterDefinition
   private readonly chaseSpeed: number
@@ -148,6 +148,10 @@ export class SkeletonCharacterActor extends Phaser.Physics.Arcade.Sprite {
 
     const onGround = body.blocked.down
 
+    if (!onGround) {
+      this.playAirborneAnimation()
+    }
+
     // Resume walk animation when transitioning from air to ground
     if (this.wasAirborne && onGround) {
       this.playChargeAnimation()
@@ -189,6 +193,19 @@ export class SkeletonCharacterActor extends Phaser.Physics.Arcade.Sprite {
     this.playWalkAnimation()
   }
 
+  private playAirborneAnimation(): void {
+    const jumpAnim = this.definition.animations.jump
+    if (!jumpAnim) {
+      return
+    }
+
+    if (this.anims.currentAnim?.key === jumpAnim.name) {
+      return
+    }
+
+    this.play(jumpAnim.name, true)
+  }
+
   private isInCameraView(camera: Phaser.Cameras.Scene2D.Camera): boolean {
     return camera.worldView.contains(this.x, this.y)
   }
@@ -217,11 +234,7 @@ export class SkeletonCharacterActor extends Phaser.Physics.Arcade.Sprite {
     body.setVelocityY(-this.jumpVelocityY)
     this.jumpCooldown = SkeletonCharacterActor.JUMP_COOLDOWN_FRAMES
     this.wasAirborne = true
-
-    const jumpAnim = this.definition.animations.jump
-    if (jumpAnim) {
-      this.play(jumpAnim.name, true)
-    }
+    this.playAirborneAnimation()
   }
 
   /**

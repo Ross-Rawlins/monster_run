@@ -35,5 +35,5 @@ export const ZOMBIE_SPAWN_CONFIG = createSurfaceSpawnConfig({
    * Prevents spawns on very narrow ledges where patrol would be trivial.
    */
   minSurfaceWidthTiles: 3,
-  surfaces: ['ground_top'],
+  surfaces: ['ground_top', 'platform_top'],
 })

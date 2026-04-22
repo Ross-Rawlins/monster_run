@@ -39,13 +39,15 @@ export abstract class ZombieBaseDefinition extends AbstractCharacterDefinition {
   readonly jumpVelocity = 500
   readonly canJump = false
   readonly runThreshold = 30
+  readonly frameGroundLine = Math.round(
+    this.frameHeight * ZOMBIE_FEET_LINE_RATIO
+  )
+  readonly bodyAnchorX = Math.round(this.frameWidth * ZOMBIE_BODY_LEFT_RATIO)
 
-  readonly body: CharacterBodyDefinition = {
-    width: 26,
-    height: 56,
-    offsetX: 19,
-    offsetY: -8,
-  }
+  readonly body: CharacterBodyDefinition = this.buildBody(
+    Math.round(this.frameWidth * ZOMBIE_BODY_WIDTH_RATIO),
+    Math.round(this.frameHeight * ZOMBIE_BODY_HEIGHT_RATIO)
+  )
 
   get bodyProfiles() {
     return defineBodyProfiles(this.body)
@@ -55,8 +57,8 @@ export abstract class ZombieBaseDefinition extends AbstractCharacterDefinition {
     const p = this.id
     return {
       idle: anim(`${p}-idle`, [26, 27, 28, 29, 30, 31], 8, -1),
-      move: anim(`${p}-move`, [38, 39, 40, 41, 42, 43], 10, -1),
-      run: anim(`${p}-run`, [32, 33, 34, 35, 36, 37], 14, -1),
+      move: anim(`${p}-move`, [38, 39, 40, 41, 42, 43], 6, -1),
+      run: anim(`${p}-run`, [32, 33, 34, 35, 36, 37], 9, -1),
       attack: anim(`${p}-attack1`, [0, 1, 2, 3, 4, 5], 10, 0),
       attack2: anim(`${p}-attack2`, [6, 7, 8, 9, 10, 11], 10, 0),
       death: anim(`${p}-death`, [12, 13, 14, 15, 16, 17], 10, 0),

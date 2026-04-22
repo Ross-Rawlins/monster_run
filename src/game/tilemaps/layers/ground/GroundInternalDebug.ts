@@ -1,6 +1,7 @@
 const TILE_GROUND = 6
 export const GROUND_INTERNAL_DEBUG_OFFSET_TILES = 2
 const MIN_INTERNAL_EFFECTIVE_OFFSET_TILES = 2
+const MAX_INTERNAL_EFFECTIVE_OFFSET_TILES = 4
 
 const MIN_INTERNAL_WIDTH_TILES = 2
 const MIN_INTERNAL_HEIGHT_TILES = 3
@@ -151,6 +152,18 @@ function hasSingleColumnInternalSpan(mask: boolean[][]): boolean {
   return false
 }
 
+function hasQualifiedInternalCells(mask: boolean[][]): boolean {
+  for (let row = 0; row < mask.length; row += 1) {
+    for (let col = 0; col < mask[row].length; col += 1) {
+      if (mask[row][col]) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
 function resolveEffectiveOffset(
   tiles: number[][],
   cacheEntry: GroundInternalCacheEntry,
@@ -161,19 +174,28 @@ function resolveEffectiveOffset(
     return cached
   }
 
-  const maxOffset = getMaxGroundDistance(cacheEntry.distanceField)
-  const clampedStartOffset = Math.min(requestedOffset, maxOffset)
+  const startOffset = Math.max(
+    MIN_INTERNAL_EFFECTIVE_OFFSET_TILES,
+    Math.min(requestedOffset, MAX_INTERNAL_EFFECTIVE_OFFSET_TILES)
+  )
 
-  for (let offset = clampedStartOffset; offset <= maxOffset; offset += 1) {
+  for (
+    let offset = startOffset;
+    offset <= MAX_INTERNAL_EFFECTIVE_OFFSET_TILES;
+    offset += 1
+  ) {
     const mask = getQualifiedMaskForOffset(tiles, cacheEntry, offset)
-    if (!hasSingleColumnInternalSpan(mask)) {
+    if (hasQualifiedInternalCells(mask) && !hasSingleColumnInternalSpan(mask)) {
       cacheEntry.resolvedOffsetsByRequest.set(requestedOffset, offset)
       return offset
     }
   }
 
-  cacheEntry.resolvedOffsetsByRequest.set(requestedOffset, maxOffset)
-  return maxOffset
+  cacheEntry.resolvedOffsetsByRequest.set(
+    requestedOffset,
+    MAX_INTERNAL_EFFECTIVE_OFFSET_TILES
+  )
+  return MAX_INTERNAL_EFFECTIVE_OFFSET_TILES
 }
 
 function buildQualifiedInternalMask(
@@ -266,18 +288,6 @@ function buildQualifiedInternalMask(
   }
 
   return qualifiedMask
-}
-
-function getMaxGroundDistance(distanceField: number[][]): number {
-  let maxDistance = 0
-
-  for (const row of distanceField) {
-    for (const distance of row) {
-      maxDistance = Math.max(maxDistance, distance)
-    }
-  }
-
-  return Math.max(1, maxDistance)
 }
 
 function getQualifiedMaskForOffset(

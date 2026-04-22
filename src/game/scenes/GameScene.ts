@@ -32,6 +32,7 @@ import {
   TILE_SIZE_PX,
 } from '../tilemaps/TileTypes'
 import { ZombieSpawner } from '../characters/ZombieSpawner'
+import { SkeletonSpawner } from '../characters/SkeletonSpawner'
 import { CharacterRegistry } from '../../characters/CharacterRegistry'
 import { registerCharacterAnimations } from '../../characters/registerCharacterAnimations'
 
@@ -46,8 +47,6 @@ const CHUNK_CLEANUP_BEHIND = 1
 const WORLD_PADDING_CHUNKS = 2
 const TILESET_KEY = 'runner-tileset'
 const RUNTIME_HUD_REFRESH_MS = 100
-const DEBUG_GRID_ROWS = 20
-const DEBUG_GRID_COLUMNS = 60
 const SHOW_EMPTY_DEBUG_LABELS = false
 const SHOW_DEBUG_LABELS = false
 const SHOW_PARALLAX_IMAGES = true
@@ -66,8 +65,20 @@ const INTERNAL_DEBUG_TILE_VALUE = 8
 const SEPARATOR_DEBUG_TILE_VALUE = 1
 const COLLISION_DEBUG_CELL_COLOR = 0x00e5ff
 const COLLISION_DEBUG_CELL_ALPHA = 0.16
+const COLLISION_TOP_SURFACE_FILL_COLOR = 0x8f8f8f
+const COLLISION_TOP_SURFACE_FILL_ALPHA = 0.75
 const COLLISION_TOP_EDGE_COLOR = 0x00fff0
 const COLLISION_TOP_EDGE_ALPHA = 0.95
+const HUD_TEXT_NORMAL_COLOR = '#dce6ff'
+const HUD_TEXT_ERROR_COLOR = '#ffd1d1'
+const TORCH_ANIMATION_KEY = 'torch-flame-flicker'
+const TORCH_GLOW_HALO_COLOR = 0xaaaa44
+const TORCH_RENDER_SIZE_TILES = 2
+const TORCH_ANIMATION_FRAME_RATE = 7
+const TORCH_GLOW_HALO_ALPHA = 0.12
+const INTERNAL_GROUND_FALLBACK_TILE_INDEX = 133
+const CAVE_SHADE_OVERLAY_ALPHA = 0.4
+const CAVE_SHADE_OVERLAY_DEPTH = OBJECT_MIN_DEPTH - 0.4
 
 interface TileStats {
   empty: number
@@ -92,12 +103,13 @@ export default class GameScene extends Phaser.Scene {
   private keyA!: Phaser.Input.Keyboard.Key
   private keyD!: Phaser.Input.Keyboard.Key
   private parallaxManager: ParallaxBackgroundManager | null = null
-  private debugKey!: Phaser.Input.Keyboard.Key
   private lightingDebugKey!: Phaser.Input.Keyboard.Key
   private readonly debugChunkOverlays = new Map<number, ChunkDebugOverlay>()
+  private characterCollisionDebugGraphics: Phaser.GameObjects.Graphics | null =
+    null
   private runtimeHudText: Phaser.GameObjects.Text | null = null
   private lightingOverlay: FullScreenGradientOverlayHandle | null = null
-  private debugEnabled = true
+  private debugEnabled = false
   private runtimeTileSizePx = TILE_SIZE_PX
   private runtimeTileScale = 1
   private runtimeChunkWidthPx = GRID_WIDTH * TILE_SIZE_PX
@@ -116,6 +128,7 @@ export default class GameScene extends Phaser.Scene {
   private averageAttachDurationMs = 0
   private attachedChunkCount = 0
   private zombieSpawner!: ZombieSpawner
+  private skeletonSpawner!: SkeletonSpawner
 
   constructor() {
     super('GAME_SCENE')
@@ -132,6 +145,11 @@ export default class GameScene extends Phaser.Scene {
       RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
       'assets/objects.png',
       'assets/objects.json'
+    )
+    this.load.atlas(
+      RUNNER_ASSET_KEYS.TORCH_ATLAS,
+      'assets/torch.png',
+      'assets/torch.json'
     )
 
     // Load NPC character spritesheets — GameScene runs standalone (no BootScene),
@@ -178,7 +196,6 @@ export default class GameScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.D,
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     ])
-    this.debugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G)
     this.lightingDebugKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
 
     // Optional visual layer while tuning randomization rules.
@@ -187,6 +204,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.lightingOverlay = createFullScreenGradientOverlay(this, sw, sh)
+    this.ensureAnimationExists(TORCH_ANIMATION_KEY)
 
     const playerShape = this.add.rectangle(
       this.playerStartX,
@@ -226,7 +244,7 @@ export default class GameScene extends Phaser.Scene {
       .text(
         12,
         12,
-        'Arrows or A/D = Scroll  |  SPACE = Jump  |  G = Grid  |  L = Gradient Guide',
+        'Arrows or A/D = Scroll  |  SPACE = Jump  |  L = Gradient Guide',
         {
           fontSize: '12px',
           color: '#ffffff',
@@ -239,13 +257,18 @@ export default class GameScene extends Phaser.Scene {
     this.runtimeHudText = this.add
       .text(12, 30, '', {
         fontSize: '11px',
-        color: '#dce6ff',
+        color: HUD_TEXT_NORMAL_COLOR,
         backgroundColor: '#1d2f43',
         padding: { x: 6, y: 4 },
       })
       .setAlpha(0.9)
       .setScrollFactor(0)
       .setDepth(1101)
+
+    // Graphics layer for collision debug visualization (red grid borders and character boxes)
+    this.characterCollisionDebugGraphics = this.add.graphics()
+    this.characterCollisionDebugGraphics.setDepth(99)
+    this.characterCollisionDebugGraphics.setScrollFactor(1)
 
     this.chunkManager = new ChunkManager((chunk, lifecycle) => {
       this.attachChunk(chunk, lifecycle)
@@ -257,9 +280,19 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.zombieSpawner = new ZombieSpawner(this)
+    this.skeletonSpawner = new SkeletonSpawner(
+      this,
+      (x, y) => this.isTileSolidAt(x, y),
+      this.scale.height + this.runtimeTileSizePx * 4,
+      // Occlusion boundary: one tile below the visible screen bottom.
+      // Skeletons that fall past this point trigger the gap-death sequence
+      // instead of silently falling to the world bottom.
+      this.scale.height + this.runtimeTileSizePx
+    )
     this.events.once('shutdown', () => {
       this.chunkManager.destroy()
       this.zombieSpawner.destroy()
+      this.skeletonSpawner.destroy()
       this.parallaxManager?.destroy()
       this.parallaxManager = null
       this.clearDebugOverlay()
@@ -274,6 +307,7 @@ export default class GameScene extends Phaser.Scene {
     this.handleLightingOverlayDebugToggle()
     this.updateRuntimeHud()
     this.handleDebugToggle()
+    this.drawCharacterCollisionDebug()
 
     if (!this.hasPlacedSpawn) {
       return
@@ -291,6 +325,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.updateChunkStreaming()
     this.zombieSpawner.update()
+    this.skeletonSpawner.update()
     this.syncDebugOverlayWithActiveChunks()
 
     if (
@@ -380,6 +415,7 @@ export default class GameScene extends Phaser.Scene {
     )
     this.chunkManager.destroyStaleChunks(cleanupBoundaryX)
     this.zombieSpawner.destroyZombiesBefore(cleanupBoundaryX)
+    this.skeletonSpawner.destroySkeletonsBefore(cleanupBoundaryX)
 
     const triggerX = Math.max(
       this.player.x,
@@ -437,18 +473,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private handleDebugToggle(): void {
-    if (!Phaser.Input.Keyboard.JustDown(this.debugKey)) {
-      return
-    }
-
-    this.debugEnabled = !this.debugEnabled
-
     if (this.debugEnabled) {
+      this.debugEnabled = false
       this.redrawDebugOverlay()
-      return
     }
-
-    this.clearDebugOverlay()
   }
 
   private recoverPlayerForGenerationTest(): void {
@@ -594,6 +622,7 @@ export default class GameScene extends Phaser.Scene {
     layer.setDepth(1)
     layer.setScale(this.runtimeTileScale)
     layer.setCollision(this.getCollisionTileIndices())
+    this.applyCollisionRulesForChunkLayer(layer, chunk)
     layer.setVisible(SHOW_TILE_IMAGES)
 
     if (supportVisualLayer) {
@@ -616,12 +645,19 @@ export default class GameScene extends Phaser.Scene {
           lifecycle.chunkIndex * this.runtimeChunkWidthPx
         )
       : null
-    const objectSprites = this.drawChunkObjects(
-      chunk,
-      lifecycle.chunkIndex * this.runtimeChunkWidthPx
-    )
+    const { sprites: objectSprites, staticGroup: objectStaticGroup } =
+      this.drawChunkObjects(
+        chunk,
+        lifecycle.chunkIndex * this.runtimeChunkWidthPx,
+        layer,
+        supportForegroundLayer ?? undefined
+      )
 
     const collider = this.physics.add.collider(this.player, layer)
+    const objectCollider = this.physics.add.collider(
+      this.player,
+      objectStaticGroup
+    )
     const activeChunk: ActiveChunk = {
       chunk,
       tilemap,
@@ -632,7 +668,9 @@ export default class GameScene extends Phaser.Scene {
       foregroundVisualLayer: supportForegroundLayer ?? undefined,
       objectAvailabilityOverlay: objectAvailabilityOverlay ?? undefined,
       objectSprites,
+      staticGroup: objectStaticGroup,
       collider,
+      objectCollider,
       lifecycle,
       rightEdgePx: chunkRightEdgePx,
     }
@@ -655,6 +693,20 @@ export default class GameScene extends Phaser.Scene {
       this.chunkOffsetY,
       this.runtimeTileSizePx,
       layer
+    )
+
+    // Register the new layer before spawning skeletons so each spawned
+    // skeleton receives colliders with all active layers, including this one.
+    this.skeletonSpawner.onLayerAdded(layer)
+    // Register the chunk's object static group so skeletons also collide with
+    // placed rocks (32×32, 48×48) from this chunk.
+    this.skeletonSpawner.onStaticGroupAdded(objectStaticGroup)
+    this.skeletonSpawner.spawnForChunk(
+      chunk,
+      lifecycle.chunkIndex,
+      lifecycle.chunkIndex * this.runtimeChunkWidthPx,
+      this.chunkOffsetY,
+      this.runtimeTileSizePx
     )
 
     if (lifecycle.chunkIndex + 1 > MAX_ACTIVE_CHUNKS) {
@@ -786,6 +838,7 @@ export default class GameScene extends Phaser.Scene {
           ),
         }
       )
+
       return
     }
 
@@ -918,6 +971,36 @@ export default class GameScene extends Phaser.Scene {
 
   /** Optimistically widen bounds so the camera can scroll while the worker
    *  is still generating the next incoming chunk. */
+  /**
+   * Returns true when the given world-space point overlaps a non-empty tile in
+   * any currently active chunk. Used by SkeletonCharacterActor for gap-ahead
+   * detection without requiring direct access to tilemap layers.
+   */
+  private isTileSolidAt(worldX: number, worldY: number): boolean {
+    for (const activeChunk of this.chunkManager.getActiveChunksSnapshot()) {
+      const chunkLeft =
+        activeChunk.lifecycle.chunkIndex * this.runtimeChunkWidthPx
+      const chunkRight = chunkLeft + this.runtimeChunkWidthPx
+
+      if (worldX < chunkLeft || worldX >= chunkRight) {
+        continue
+      }
+
+      const col = Math.floor((worldX - chunkLeft) / this.runtimeTileSizePx)
+      const row = Math.floor(
+        (worldY - this.chunkOffsetY) / this.runtimeTileSizePx
+      )
+
+      if (row < 0 || row >= GRID_HEIGHT || col < 0 || col >= GRID_WIDTH) {
+        return false
+      }
+
+      return activeChunk.chunk.tiles[row][col] !== Tile.EMPTY
+    }
+
+    return false
+  }
+
   private preExtendWorldBounds(estimatedRightEdge: number): void {
     const worldWidth =
       estimatedRightEdge + this.runtimeChunkWidthPx * WORLD_PADDING_CHUNKS
@@ -950,40 +1033,59 @@ export default class GameScene extends Phaser.Scene {
     return this.cachedCollisionTileIndices
   }
 
+  private applyCollisionRulesForChunkLayer(
+    layer: Phaser.Tilemaps.TilemapLayer,
+    chunk: Chunk
+  ): void {
+    for (let row = 0; row < GRID_HEIGHT; row += 1) {
+      for (let col = 0; col < GRID_WIDTH; col += 1) {
+        const mapTile = layer.getTileAt(col, row)
+        if (!mapTile) {
+          continue
+        }
+
+        const terrainTile = chunk.tiles[row][col]
+
+        if (terrainTile === Tile.PLATFORM) {
+          const hasEmptyAbove =
+            row === 0 || chunk.tiles[row - 1][col] === Tile.EMPTY
+
+          if (hasEmptyAbove) {
+            // One-way platform: collide only on the top face.
+            mapTile.setCollision(false, false, true, false, false)
+          } else {
+            // Platform tile not exposed at top should not block movement.
+            mapTile.resetCollision(false)
+          }
+
+          continue
+        }
+
+        if (terrainTile === Tile.GROUND || terrainTile === Tile.CAVE) {
+          mapTile.setCollision(true, true, true, true, false)
+          continue
+        }
+
+        mapTile.resetCollision(false)
+      }
+    }
+
+    // Recompute collision faces after per-tile directional overrides.
+    layer.calculateFacesWithin(0, 0, GRID_WIDTH, GRID_HEIGHT)
+  }
+
   private redrawDebugOverlay(): void {
     this.clearDebugOverlay()
     this.syncDebugOverlayWithActiveChunks()
   }
 
   /**
-   * Draw a world-space square grid aligned to each active chunk (20x60).
-   * Because this uses world coordinates, it follows generated elements while scrolling.
+   * Draw chunk debug overlays in world space.
+   * Grid lines are intentionally hidden; only collision and tile fills remain.
    */
   private syncDebugOverlayWithActiveChunks(): void {
-    if (!this.debugEnabled) {
+    if (this.debugChunkOverlays.size > 0) {
       return
-    }
-
-    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
-    const activeChunkIndices = new Set<number>()
-
-    for (const activeChunk of activeChunks) {
-      const chunkIndex = activeChunk.lifecycle.chunkIndex
-      activeChunkIndices.add(chunkIndex)
-
-      if (this.debugChunkOverlays.has(chunkIndex)) {
-        continue
-      }
-
-      this.drawDebugChunkOverlayForChunk(activeChunk)
-    }
-
-    for (const [chunkIndex] of this.debugChunkOverlays) {
-      if (activeChunkIndices.has(chunkIndex)) {
-        continue
-      }
-
-      this.destroyDebugChunkOverlay(chunkIndex)
     }
   }
 
@@ -994,8 +1096,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const cellSize = this.runtimeTileSizePx
-    const gridWidth = cellSize * DEBUG_GRID_COLUMNS
-    const gridHeight = cellSize * DEBUG_GRID_ROWS
     const fontSizePx = Math.max(
       DEBUG_GRID_STYLE.labelMinFontSizePx,
       Math.round(cellSize * DEBUG_GRID_STYLE.labelFontSizeFactor)
@@ -1007,20 +1107,6 @@ export default class GameScene extends Phaser.Scene {
     const fillGraphics = this.add.graphics().setDepth(0.5)
     const labels: Phaser.GameObjects.Text[] = []
 
-    gridGraphics.lineStyle(
-      1,
-      DEBUG_GRID_STYLE.lineColor,
-      DEBUG_GRID_STYLE.lineAlpha
-    )
-
-    this.drawChunkGridLines(
-      gridGraphics,
-      xOffset,
-      yOffset,
-      cellSize,
-      gridWidth,
-      gridHeight
-    )
     this.drawChunkTileValues(
       activeChunk,
       fillGraphics,
@@ -1051,31 +1137,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.debugChunkOverlays.delete(chunkIndex)
-  }
-
-  private drawChunkGridLines(
-    gridGraphics: Phaser.GameObjects.Graphics,
-    xOffset: number,
-    yOffset: number,
-    cellSize: number,
-    gridWidth: number,
-    gridHeight: number
-  ): void {
-    for (let row = 0; row <= DEBUG_GRID_ROWS; row += 1) {
-      const y = Math.round(yOffset + row * cellSize) + 0.5
-      gridGraphics.beginPath()
-      gridGraphics.moveTo(xOffset + 0.5, y)
-      gridGraphics.lineTo(xOffset + gridWidth + 0.5, y)
-      gridGraphics.strokePath()
-    }
-
-    for (let col = 0; col <= DEBUG_GRID_COLUMNS; col += 1) {
-      const x = Math.round(xOffset + col * cellSize) + 0.5
-      gridGraphics.beginPath()
-      gridGraphics.moveTo(x, yOffset + 0.5)
-      gridGraphics.lineTo(x, yOffset + gridHeight + 0.5)
-      gridGraphics.strokePath()
-    }
   }
 
   private drawObjectAvailabilityOverlay(
@@ -1115,30 +1176,84 @@ export default class GameScene extends Phaser.Scene {
 
   private drawChunkObjects(
     chunk: Chunk,
-    chunkOffsetX: number
-  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] {
+    chunkOffsetX: number,
+    layer: Phaser.Tilemaps.TilemapLayer,
+    caveLayer?: Phaser.Tilemaps.TilemapLayer
+  ): {
+    sprites: Phaser.GameObjects.GameObject[]
+    staticGroup: Phaser.Physics.Arcade.StaticGroup
+  } {
     const placements = chunk.objectPlacements ?? []
-    const created: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = []
+    const created: Phaser.GameObjects.GameObject[] = []
+    const staticGroup = this.physics.add.staticGroup()
+    const torchCells: Array<{ row: number; col: number }> = []
 
     for (const placement of placements) {
       try {
+        const textureKey =
+          placement.textureKey ?? RUNNER_ASSET_KEYS.OBJECTS_ATLAS
+        const isTorch = textureKey === RUNNER_ASSET_KEYS.TORCH_ATLAS
         const depth = Math.max(placement.renderDepth ?? 4, OBJECT_MIN_DEPTH)
         const yOffsetPx =
           placement.renderYOffsetPx ??
           (placement.frameKey.startsWith('64x96/') ? 1 : 0)
+        const { widthTiles, heightTiles } =
+          this.resolveObjectGridSpanFromFrameKey(textureKey, placement.frameKey)
+        const displayW =
+          (isTorch ? TORCH_RENDER_SIZE_TILES : widthTiles) *
+          this.runtimeTileSizePx
+        const displayH =
+          (isTorch ? TORCH_RENDER_SIZE_TILES : heightTiles) *
+          this.runtimeTileSizePx
         if (placement.animationKey) {
           this.ensureAnimationExists(placement.animationKey)
+
+          if (isTorch) {
+            const terrainFrameIndex =
+              layer.getTileAt(placement.col, placement.row, true)?.index ?? -1
+            if (terrainFrameIndex === INTERNAL_GROUND_FALLBACK_TILE_INDEX) {
+              continue
+            }
+
+            const caveTileIndex =
+              caveLayer?.getTileAt(placement.col, placement.row, true)?.index ??
+              -1
+            if (caveTileIndex <= 0) {
+              continue
+            }
+
+            const glowHalo = this.add
+              .ellipse(
+                chunkOffsetX +
+                  placement.col * this.runtimeTileSizePx +
+                  displayW * 0.5,
+                this.chunkOffsetY +
+                  placement.row * this.runtimeTileSizePx +
+                  yOffsetPx +
+                  displayH * 0.17,
+                displayW * 0.78,
+                displayH * 0.56,
+                TORCH_GLOW_HALO_COLOR,
+                TORCH_GLOW_HALO_ALPHA
+              )
+              .setBlendMode(Phaser.BlendModes.ADD)
+              .setDepth(depth - 0.01)
+
+            created.push(glowHalo)
+            torchCells.push({ row: placement.row, col: placement.col })
+          }
+
           const sprite = this.add
             .sprite(
               chunkOffsetX + placement.col * this.runtimeTileSizePx,
               this.chunkOffsetY +
                 placement.row * this.runtimeTileSizePx +
                 yOffsetPx,
-              RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
+              textureKey,
               placement.frameKey
             )
             .setOrigin(0, 0)
-            .setScale(this.runtimeTileScale)
+            .setDisplaySize(displayW, displayH)
             .setDepth(depth)
 
           if (sprite && typeof sprite.play === 'function') {
@@ -1152,26 +1267,140 @@ export default class GameScene extends Phaser.Scene {
               this.chunkOffsetY +
                 placement.row * this.runtimeTileSizePx +
                 yOffsetPx,
-              RUNNER_ASSET_KEYS.OBJECTS_ATLAS,
+              textureKey,
               placement.frameKey
             )
             .setOrigin(0, 0)
-            .setScale(this.runtimeTileScale)
+            .setDisplaySize(displayW, displayH)
             .setDepth(depth)
 
           created.push(image)
+        }
+
+        // Collision area must follow the same frame-key grid span as rendering.
+        if (placement.hasCollision) {
+          const bodyW = widthTiles * this.runtimeTileSizePx
+          const bodyH = heightTiles * this.runtimeTileSizePx
+          const bodyX =
+            chunkOffsetX + placement.col * this.runtimeTileSizePx + bodyW / 2
+          const bodyY =
+            this.chunkOffsetY +
+            placement.row * this.runtimeTileSizePx +
+            yOffsetPx +
+            bodyH / 2
+
+          const rect = this.add
+            .rectangle(bodyX, bodyY, bodyW, bodyH)
+            .setVisible(false)
+          this.physics.add.existing(rect, true)
+          staticGroup.add(rect)
         }
       } catch (error) {
         console.error('Error creating object sprite:', error, placement)
       }
     }
 
-    return created
+    const caveShadeOverlay = this.createCaveShadeOverlay(chunk, chunkOffsetX)
+    if (caveShadeOverlay) {
+      created.push(caveShadeOverlay)
+    }
+
+    return { sprites: created, staticGroup }
+  }
+
+  private createCaveShadeOverlay(
+    chunk: Chunk,
+    chunkOffsetX: number
+  ): Phaser.GameObjects.Graphics | null {
+    const overlay = this.add.graphics().setDepth(CAVE_SHADE_OVERLAY_DEPTH)
+    let drawnCells = 0
+
+    for (let row = 0; row < GRID_HEIGHT; row += 1) {
+      for (let col = 0; col < GRID_WIDTH; col += 1) {
+        const isInternal = isGroundInternalDebugCell(
+          chunk.tiles,
+          row,
+          col,
+          GROUND_INTERNAL_DEBUG_OFFSET_TILES
+        )
+        if (!isInternal) {
+          continue
+        }
+
+        overlay.fillStyle(0x000000, CAVE_SHADE_OVERLAY_ALPHA)
+        overlay.fillRect(
+          chunkOffsetX + col * this.runtimeTileSizePx,
+          this.chunkOffsetY + row * this.runtimeTileSizePx,
+          this.runtimeTileSizePx,
+          this.runtimeTileSizePx
+        )
+        drawnCells += 1
+      }
+    }
+
+    if (drawnCells === 0) {
+      overlay.destroy()
+      return null
+    }
+
+    return overlay
+  }
+
+  private resolveObjectGridSpanFromFrameKey(
+    textureKey: string,
+    frameKey: string
+  ): {
+    widthTiles: number
+    heightTiles: number
+  } {
+    // Use actual atlas frame dimensions first so grid sizing is driven by the
+    // loaded asset, then fall back to the frame-key bucket token.
+    const atlasFrame = this.textures.getFrame(textureKey, frameKey)
+    if (atlasFrame) {
+      return {
+        widthTiles: Math.max(1, Math.round(atlasFrame.cutWidth / TILE_SIZE_PX)),
+        heightTiles: Math.max(
+          1,
+          Math.round(atlasFrame.cutHeight / TILE_SIZE_PX)
+        ),
+      }
+    }
+
+    const match = /^(\d+)x(\d+)\//.exec(frameKey)
+    if (!match) {
+      return { widthTiles: 1, heightTiles: 1 }
+    }
+
+    const widthTiles = Math.max(
+      1,
+      Math.round(Number.parseInt(match[1], 10) / TILE_SIZE_PX)
+    )
+    const heightTiles = Math.max(
+      1,
+      Math.round(Number.parseInt(match[2], 10) / TILE_SIZE_PX)
+    )
+
+    return { widthTiles, heightTiles }
   }
 
   private ensureAnimationExists(animationKey: string): void {
     if (this.anims.exists(animationKey)) {
       return
+    }
+
+    if (animationKey === TORCH_ANIMATION_KEY) {
+      this.anims.create({
+        key: TORCH_ANIMATION_KEY,
+        frames: this.anims.generateFrameNames(RUNNER_ASSET_KEYS.TORCH_ATLAS, {
+          prefix: 'frame_',
+          start: 1,
+          end: 8,
+          zeroPad: 3,
+          suffix: '.png',
+        }),
+        frameRate: TORCH_ANIMATION_FRAME_RATE,
+        repeat: -1,
+      })
     }
   }
 
@@ -1318,18 +1547,6 @@ export default class GameScene extends Phaser.Scene {
       )
     }
 
-    if (hasTopCollisionFace) {
-      fillGraphics.lineStyle(
-        Math.max(1, Math.round(cellSize * 0.08)),
-        COLLISION_TOP_EDGE_COLOR,
-        COLLISION_TOP_EDGE_ALPHA
-      )
-      fillGraphics.beginPath()
-      fillGraphics.moveTo(x + 1, y + 1)
-      fillGraphics.lineTo(x + cellSize - 1, y + 1)
-      fillGraphics.strokePath()
-    }
-
     if (isInternalDebugCell) {
       this.fillDebugCell(
         fillGraphics,
@@ -1380,6 +1597,28 @@ export default class GameScene extends Phaser.Scene {
         cellSize
       )
     }
+
+    if (hasTopCollisionFace) {
+      this.fillDebugCell(
+        fillGraphics,
+        COLLISION_TOP_SURFACE_FILL_COLOR,
+        COLLISION_TOP_SURFACE_FILL_ALPHA,
+        x,
+        y,
+        cellSize,
+        Math.max(2, Math.round(cellSize * 0.16))
+      )
+
+      fillGraphics.lineStyle(
+        Math.max(1, Math.round(cellSize * 0.08)),
+        COLLISION_TOP_EDGE_COLOR,
+        COLLISION_TOP_EDGE_ALPHA
+      )
+      fillGraphics.beginPath()
+      fillGraphics.moveTo(x + 1, y + 1)
+      fillGraphics.lineTo(x + cellSize - 1, y + 1)
+      fillGraphics.strokePath()
+    }
   }
 
   private fillDebugCell(
@@ -1388,10 +1627,11 @@ export default class GameScene extends Phaser.Scene {
     alpha: number,
     x: number,
     y: number,
-    cellSize: number
+    cellSize: number,
+    height: number = cellSize
   ): void {
     fillGraphics.fillStyle(color, alpha)
-    fillGraphics.fillRect(x, y, cellSize, cellSize)
+    fillGraphics.fillRect(x, y, cellSize, height)
   }
 
   /** Remove all debug graphics. */
@@ -1417,6 +1657,7 @@ export default class GameScene extends Phaser.Scene {
     this.lastRuntimeHudUpdateMs = now
 
     const diagnostics = this.chunkManager.getDiagnostics()
+    const hasWorkerError = Boolean(diagnostics.lastWorkerError)
     const chunks = this.chunkManager.getActiveChunksSnapshot()
     const tileStats = this.collectTileStats(chunks)
     const firstChunk = chunks[0]?.lifecycle.chunkIndex ?? '-'
@@ -1428,6 +1669,10 @@ export default class GameScene extends Phaser.Scene {
     const cameraX = Math.round(this.cameras.main.scrollX)
     const playerX = Math.round(this.player.x)
     const velocityX = Math.round(this.player.body.velocity.x)
+
+    this.runtimeHudText
+      .setFontStyle(hasWorkerError ? 'bold' : 'normal')
+      .setColor(hasWorkerError ? HUD_TEXT_ERROR_COLOR : HUD_TEXT_NORMAL_COLOR)
 
     this.runtimeHudText.setText(
       this.buildRuntimeHudText({
@@ -1513,5 +1758,97 @@ export default class GameScene extends Phaser.Scene {
       `worker gen last=${diagnostics.lastGenerationDurationMs.toFixed(1)}ms avg=${diagnostics.averageGenerationDurationMs.toFixed(1)}ms count=${diagnostics.generationSampleCount}`,
       `attach last=${this.lastAttachDurationMs.toFixed(1)}ms avg=${this.averageAttachDurationMs.toFixed(1)}ms count=${this.attachedChunkCount}`,
     ].join('\n')
+  }
+
+  /**
+   * Draw red collision boxes around all active zombies, skeletons, and the player.
+   * Also draw red grid borders around all collidable tiles.
+   * Called every frame.
+   */
+  private drawCharacterCollisionDebug(): void {
+    if (!this.characterCollisionDebugGraphics) {
+      return
+    }
+
+    this.characterCollisionDebugGraphics.clear()
+
+    // Draw player collision box
+    const playerBody = this.player.body as RunnerBody
+    this.drawCollisionBox(
+      this.characterCollisionDebugGraphics,
+      playerBody.x,
+      playerBody.y,
+      playerBody.width,
+      playerBody.height
+    )
+
+    // Draw all active zombie collision boxes
+    const zombies = this.zombieSpawner.getActiveCharacters()
+    for (const zombie of zombies) {
+      const body = zombie.body as Phaser.Physics.Arcade.Body
+      if (!body) {
+        continue
+      }
+      this.drawCollisionBox(
+        this.characterCollisionDebugGraphics,
+        body.x,
+        body.y,
+        body.width,
+        body.height
+      )
+    }
+
+    // Draw all active skeleton collision boxes
+    const skeletons = this.skeletonSpawner.getActiveCharacters()
+    for (const skeleton of skeletons) {
+      const body = skeleton.body as Phaser.Physics.Arcade.Body
+      if (!body) {
+        continue
+      }
+      this.drawCollisionBox(
+        this.characterCollisionDebugGraphics,
+        body.x,
+        body.y,
+        body.width,
+        body.height
+      )
+    }
+
+    // Draw red grid lines around all collidable tiles in active chunks
+    const activeChunks = this.chunkManager.getActiveChunksSnapshot()
+    for (const activeChunk of activeChunks) {
+      const chunkIndex = activeChunk.lifecycle.chunkIndex
+      const chunkOffsetX = chunkIndex * this.runtimeChunkWidthPx
+      const cellSize = this.runtimeTileSizePx
+
+      for (let row = 0; row < GRID_HEIGHT; row += 1) {
+        for (let col = 0; col < GRID_WIDTH; col += 1) {
+          const collisionTile = activeChunk.layer.getTileAt(col, row, true)
+          const isCollidableCell = collisionTile?.collides ?? false
+
+          if (isCollidableCell) {
+            this.characterCollisionDebugGraphics.lineStyle(1, 0xff0000, 0.5)
+            this.characterCollisionDebugGraphics.strokeRect(
+              chunkOffsetX + col * cellSize,
+              this.chunkOffsetY + row * cellSize,
+              cellSize,
+              cellSize
+            )
+          }
+        }
+      }
+    }
+  }
+
+  /** Draw a red outlined box for a collision body. */
+  private drawCollisionBox(
+    graphics: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
+    graphics.lineStyle(2, 0xff0000, 1)
+    graphics.strokeRect(x, y, width, height)
   }
 }

@@ -12,11 +12,15 @@ export const RUNNER_ASSET_KEYS = Object.freeze({
   TILES_ATLAS_JSON: 'tiles-atlas-json',
   OBJECTS_ATLAS: 'objects-atlas',
   OBJECTS_ATLAS_JSON: 'objects-atlas-json',
+  TORCH_ATLAS: 'torch-atlas',
+  TORCH_ATLAS_JSON: 'torch-atlas-json',
 })
 
 export const CHARACTER_KEYS = Object.freeze({
   // Knight
   KNIGHT: 'knight',
+  // Skull
+  SKULL_DEFAULT: 'skull-default',
   // Skeleton Warriors
   SKELETON_WARRIOR_DEFAULT: 'skeleton-warrior-default',
   SKELETON_WARRIOR_KNIGHT: 'skeleton-warrior-knight',

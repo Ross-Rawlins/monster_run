@@ -34,6 +34,11 @@ export default class BootScene extends Scene {
       'assets/objects.png',
       'assets/objects.json'
     )
+    this.load.atlas(
+      RUNNER_ASSET_KEYS.TORCH_ATLAS,
+      'assets/torch.png',
+      'assets/torch.json'
+    )
   }
 
   public create(): void {

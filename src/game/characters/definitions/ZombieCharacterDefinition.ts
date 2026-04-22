@@ -9,7 +9,7 @@ export const ZOMBIE_CHARACTER_DEFINITION: SurfaceSpawnCharacterDefinition = {
   characterIdPrefix: 'zombie-',
   spawn: ZOMBIE_SPAWN_CONFIG,
   behavior: {
-    patrolSpeedMultiplier: 0.16,
+    patrolSpeedMultiplier: 0.1,
     riseAnimationState: 'rise',
     moveAnimationState: 'move',
   },

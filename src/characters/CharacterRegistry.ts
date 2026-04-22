@@ -29,6 +29,7 @@ import { ZOMBIE_STAR_DEFINITION } from './definitions/zombie/ZombieStarDefinitio
 import { ZOMBIE_TOPHAT_DEFINITION } from './definitions/zombie/ZombieTophatDefinition'
 import { ZOMBIE_TOQUE_DEFINITION } from './definitions/zombie/ZombieToqueDefinition'
 import { ZOMBIE_VIKING_DEFINITION } from './definitions/zombie/ZombieVikingDefinition'
+import { SKULL_DEFAULT_DEFINITION } from './definitions/skull/SkullDefaultDefinition'
 
 const characterDefinitions: AbstractCharacterDefinition[] = [
   // KNIGHT_DEFINITION, // temporarily disabled — focusing on terrain/background
@@ -60,6 +61,7 @@ const characterDefinitions: AbstractCharacterDefinition[] = [
   ZOMBIE_TOPHAT_DEFINITION,
   ZOMBIE_TOQUE_DEFINITION,
   ZOMBIE_VIKING_DEFINITION,
+  SKULL_DEFAULT_DEFINITION,
 ]
 
 export const CharacterRegistry = {

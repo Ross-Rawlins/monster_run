@@ -15,13 +15,10 @@ export const OBJECT_BASE_TILE_SIZE_PX = 16
 export const OBJECT_TILE_SIZE_GROUPINGS: ReadonlyArray<ObjectTileSizeGrouping> =
   [
     { atlasSize: '16x16', minIndex: 1, maxIndex: 50 },
-    { atlasSize: '16x32', minIndex: 1, maxIndex: 16 },
-    { atlasSize: '16x64', minIndex: 1, maxIndex: 14 },
     { atlasSize: '32x32', minIndex: 1, maxIndex: 32 },
     { atlasSize: '48x48', minIndex: 1, maxIndex: 24 },
     { atlasSize: '48x64', minIndex: 1, maxIndex: 8 },
     { atlasSize: '64x96', minIndex: 1, maxIndex: 3 },
-    { atlasSize: '96x112', minIndex: 1, maxIndex: 4 },
   ] as const
 
 // Lower depth is farther back. Depths are named by tile-size grouping.

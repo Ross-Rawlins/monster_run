@@ -106,9 +106,15 @@ export abstract class BaseSurfaceCharacterSpawner<
   }
 
   public update(): void {
+    this.pruneStaleColliders()
+
     for (const character of this.characters) {
       this.updateCharacter(character)
     }
+  }
+
+  public getActiveCharacters(): TCharacter[] {
+    return this.characters
   }
 
   public destroyBefore(worldX: number): void {
@@ -240,5 +246,30 @@ export abstract class BaseSurfaceCharacterSpawner<
   private pickDefinition(): AbstractCharacterDefinition {
     const index = Math.floor(this.random() * this.characterDefinitions.length)
     return this.characterDefinitions[index]
+  }
+
+  private pruneStaleColliders(): void {
+    let i = 0
+
+    while (i < this.colliders.length) {
+      const collider = this.colliders[i]
+      const sprite = collider.object1 as { active?: boolean } | null
+      const layer = collider.object2 as any
+
+      const spriteActive = sprite?.active !== false
+      const layerValid =
+        layer &&
+        layer.active === true &&
+        layer.tilemap &&
+        layer.tilemap.layers &&
+        layer.tilemap.layers.length > 0
+
+      if (collider.active && spriteActive && layerValid) {
+        i += 1
+      } else {
+        collider.destroy()
+        this.colliders.splice(i, 1)
+      }
+    }
   }
 }

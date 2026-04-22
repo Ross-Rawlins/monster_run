@@ -31,6 +31,10 @@ const GROUND_SURFACE_VALUE = 6
 const GROUND_INTERNAL_VALUE = 8
 // Single per-chunk chance — spider webs are not rolled per corner cell
 const SPIDER_WEB_CHUNK_CHANCE = 0.3
+const TORCH_RULE_ID = 'torch-ground-internal'
+const TORCH_CHUNK_CHANCE = 1
+const TORCH_TARGET_ROW_FROM_BOTTOM = 3
+const TORCH_TARGET_COLUMN_STEP = 3
 
 export class ObjectGenerator {
   private readonly width: number
@@ -62,6 +66,7 @@ export class ObjectGenerator {
       availability,
       placements
     )
+    this.ensureAtLeastOneTorchPlacement(terrainTiles, availability, placements)
 
     return {
       availabilityGrid: availability,
@@ -115,11 +120,19 @@ export class ObjectGenerator {
     col: number,
     rule: ObjectRuleDefinition
   ): void {
-    if (!rule.frameIndexRange && !rule.frameIndices?.length) {
+    if (
+      !rule.frameIndexRange &&
+      !rule.frameIndices?.length &&
+      !rule.frameKeys?.length
+    ) {
       return
     }
 
-    const objectRow = this.resolveObjectRow(row, rule.surface, rule.footprint.height)
+    const objectRow = this.resolveObjectRow(
+      row,
+      rule.surface,
+      rule.footprint.height
+    )
 
     if (objectRow < 0 || objectRow >= this.height) {
       return
@@ -210,6 +223,7 @@ export class ObjectGenerator {
       row: objectRow,
       col,
       frameKey,
+      textureKey: rule.textureKey,
       animationKey: rule.animation?.key,
       renderDepth: rule.renderDepth,
       renderYOffsetPx: rule.renderYOffsetPx,
@@ -217,6 +231,7 @@ export class ObjectGenerator {
         rule.footprint.width > 1 ? rule.footprint.width : undefined,
       footprintHeight:
         rule.footprint.height > 1 ? rule.footprint.height : undefined,
+      hasCollision: rule.hasCollision ?? false,
     })
   }
 
@@ -529,6 +544,116 @@ export class ObjectGenerator {
     )
   }
 
+  private ensureAtLeastOneTorchPlacement(
+    terrainTiles: ReadonlyArray<ReadonlyArray<Tile>>,
+    availability: number[][],
+    placements: GeneratedObjectPlacement[]
+  ): void {
+    const torchRule = OBJECT_RULES.find((rule) => rule.id === TORCH_RULE_ID)
+    if (!torchRule) {
+      return
+    }
+
+    const hasTorch = placements.some(
+      (placement) =>
+        placement.textureKey === torchRule.textureKey ||
+        placement.animationKey === torchRule.animation?.key
+    )
+    if (hasTorch) {
+      return
+    }
+
+    if (!this.shouldApplyRule(TORCH_CHUNK_CHANCE)) {
+      return
+    }
+
+    const candidates: Array<{ row: number; col: number }> = []
+
+    for (let row = 0; row < this.height; row += 1) {
+      for (let col = 0; col < this.width; col += 1) {
+        if (this.surfaceMatches(terrainTiles, row, col, torchRule.surface)) {
+          candidates.push({ row, col })
+        }
+      }
+    }
+
+    while (candidates.length > 0) {
+      const candidateIndex = this.randomInt(0, candidates.length - 1)
+      const candidate = candidates.splice(candidateIndex, 1)[0]
+      const objectRow = this.resolveObjectRow(
+        candidate.row,
+        torchRule.surface,
+        torchRule.footprint.height
+      )
+
+      if (objectRow < 0 || objectRow >= this.height) {
+        continue
+      }
+
+      if (
+        this.isPlacementOccupied(
+          placements,
+          objectRow,
+          candidate.col,
+          torchRule.footprint.width,
+          torchRule.footprint.height
+        )
+      ) {
+        continue
+      }
+
+      if (
+        this.violatesPlacementSpacing(
+          placements,
+          objectRow,
+          candidate.col,
+          torchRule.footprint.width,
+          torchRule.footprint.height,
+          torchRule.minSpacingTiles?.horizontal ?? 0,
+          torchRule.minSpacingTiles?.vertical ?? 0
+        )
+      ) {
+        continue
+      }
+
+      const frameKey = this.pickFrameKey(
+        terrainTiles,
+        torchRule,
+        placements,
+        objectRow,
+        candidate.col,
+        candidate.row
+      )
+      if (!frameKey) {
+        continue
+      }
+
+      placements.push({
+        row: objectRow,
+        col: candidate.col,
+        frameKey,
+        textureKey: torchRule.textureKey,
+        animationKey: torchRule.animation?.key,
+        renderDepth: torchRule.renderDepth,
+        renderYOffsetPx: torchRule.renderYOffsetPx,
+        footprintWidth:
+          torchRule.footprint.width > 1 ? torchRule.footprint.width : undefined,
+        footprintHeight:
+          torchRule.footprint.height > 1
+            ? torchRule.footprint.height
+            : undefined,
+        hasCollision: torchRule.hasCollision ?? false,
+      })
+
+      availability[objectRow][candidate.col] = this.bumpAvailability(
+        availability[objectRow][candidate.col],
+        1
+      )
+
+      return
+    }
+  }
+
   private isSpiderWebFrameKey(frameKey: string): boolean {
     const descriptor = this.parseFrameDescriptor(frameKey)
     if (!descriptor) {
@@ -550,6 +675,16 @@ export class ObjectGenerator {
     col: number,
     sourceRow: number
   ): string | null {
+    if (rule.frameKeys && rule.frameKeys.length > 0) {
+      const frameKey = rule.deterministicFrameSelection
+        ? rule.frameKeys[
+            this.stableIndexForCell(row, col, rule.frameKeys.length)
+          ]
+        : rule.frameKeys[this.randomInt(0, rule.frameKeys.length - 1)]
+
+      return frameKey ?? null
+    }
+
     if (!rule.frameIndexRange && !rule.frameIndices?.length) {
       return null
     }
@@ -795,6 +930,10 @@ export class ObjectGenerator {
       return this.isGroundInternalTopCell(terrainTiles, row, col)
     }
 
+    if (surface === 'ground_internal_any') {
+      return this.isGroundInternalTorchLaneCell(terrainTiles, row, col)
+    }
+
     if (surface === 'ground_internal_corner_nw') {
       return this.isGroundInternalNorthWestCornerAnchorCell(
         terrainTiles,
@@ -1001,6 +1140,21 @@ export class ObjectGenerator {
     }
 
     return !this.isGroundInternalCandidate(terrainTiles, row - 1, col)
+  }
+
+  private isGroundInternalTorchLaneCell(
+    terrainTiles: ReadonlyArray<ReadonlyArray<Tile>>,
+    row: number,
+    col: number
+  ): boolean {
+    const targetRow = this.height - TORCH_TARGET_ROW_FROM_BOTTOM
+    if (row !== targetRow || col % TORCH_TARGET_COLUMN_STEP !== 0) {
+      return false
+    }
+
+    // Internal candidate maps to the cave's internal-backdrop region (tile 133)
+    // once the ground layer resolves fallback frames.
+    return this.isGroundInternalCandidate(terrainTiles, row, col)
   }
 
   private resolveObjectRow(
