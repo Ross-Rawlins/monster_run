@@ -38,6 +38,24 @@ export abstract class AbstractCharacterDefinition implements CharacterDefinition
   readonly airDrag?: number = undefined
   readonly facingRight: boolean = false
   readonly canJump: boolean = true
+  /**
+   * How many tiles wide this character should render at runtime.
+   * Calculated from frame width: Math.ceil(frameWidth / 16).
+   * At 16px per tile, a 64px frame = 4 tiles wide.
+   */
+  get widthInTiles(): number {
+    return Math.ceil(this.frameWidth / 16)
+  }
+  /**
+   * How many tiles tall this character should render at runtime.
+   * Calculated from frame height: Math.ceil(frameHeight / 16).
+   * At 16px per tile, a 64px frame = 4 tiles tall.
+   * The actor will compute: renderScale = (heightInTiles * tileSizePx) / frameHeight
+   * so the character is always proportional to the tile grid at any screen size.
+   */
+  get heightInTiles(): number {
+    return Math.ceil(this.frameHeight / 16)
+  }
   readonly runThreshold?: number = undefined
   readonly runSpeedMultiplier: number = 1.45
   readonly runJumpBoost: number = 1.18

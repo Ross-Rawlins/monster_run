@@ -64,7 +64,7 @@ export class ZombieSpawner extends BaseSurfaceCharacterSpawner<ZombieCharacterAc
   }
 
   protected override updateCharacter(character: ZombieCharacterActor): void {
-    character.tick()
+    character.tick(this.scene.cameras.main)
   }
 
   protected override createCharacterInstance(
@@ -98,18 +98,40 @@ export class ZombieSpawner extends BaseSurfaceCharacterSpawner<ZombieCharacterAc
     tileSizePx: number
   ): ZombieCharacterActor {
     const spawnX = chunkOffsetX + (point.col + 0.5) * tileSizePx
-    const spawnY = chunkOffsetY + point.row * tileSizePx - 2
+    const spawnY = this.resolveSurfaceAlignedSpawnY(
+      point,
+      definition,
+      chunkOffsetY,
+      tileSizePx
+    )
     const patrolMinX = chunkOffsetX + (point.patrolMinCol + 0.5) * tileSizePx
     const patrolMaxX = chunkOffsetX + (point.patrolMaxCol + 0.5) * tileSizePx
 
-    return new ZombieCharacterActor(
-      this.scene,
-      spawnX,
-      spawnY,
-      definition,
+    return new ZombieCharacterActor(this.scene, spawnX, spawnY, definition, {
       patrolMinX,
       patrolMaxX,
-      chunkIndex
-    )
+      chunkIndex,
+      tileSizePx,
+    })
+  }
+
+  /**
+   * Places the sprite so its Arcade body bottom starts exactly on the
+   * spawn surface top using the zombie definition's frame/body ratios.
+   */
+  private resolveSurfaceAlignedSpawnY(
+    point: SurfaceSpawnPoint,
+    definition: AbstractCharacterDefinition,
+    chunkOffsetY: number,
+    tileSizePx: number
+  ): number {
+    const renderScaleY =
+      (definition.heightInTiles * tileSizePx) / definition.frameHeight
+    const spriteHeightPx = definition.frameHeight * renderScaleY
+    const bodyBottomFromSpriteTopPx =
+      (definition.body.offsetY + definition.body.height) * renderScaleY
+    const surfaceTopY = chunkOffsetY + point.row * tileSizePx
+
+    return surfaceTopY + spriteHeightPx - bodyBottomFromSpriteTopPx
   }
 }

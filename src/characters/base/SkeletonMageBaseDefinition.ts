@@ -5,6 +5,11 @@ import {
 import { defineBodyProfiles } from '../bodyProfiles'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
 
+const SKELETON_MAGE_BODY_WIDTH_RATIO = 33 / 64
+const SKELETON_MAGE_BODY_HEIGHT_RATIO = 36 / 64
+const SKELETON_MAGE_FEET_LINE_RATIO = 47 / 64
+const SKELETON_MAGE_BODY_LEFT_RATIO = 15 / 64
+
 /**
  * Abstract base for skeleton mage variants.
  *
@@ -33,13 +38,17 @@ export abstract class SkeletonMageBaseDefinition extends AbstractCharacterDefini
   readonly jumpVelocity = 520
   readonly canJump = false
   readonly runThreshold = 30
+  readonly frameGroundLine = Math.round(
+    this.frameHeight * SKELETON_MAGE_FEET_LINE_RATIO
+  )
+  readonly bodyAnchorX = Math.round(
+    this.frameWidth * SKELETON_MAGE_BODY_LEFT_RATIO
+  )
 
-  readonly body: CharacterBodyDefinition = {
-    width: 22,
-    height: 56,
-    offsetX: 21,
-    offsetY: 4,
-  }
+  readonly body: CharacterBodyDefinition = this.buildBody(
+    Math.round(this.frameWidth * SKELETON_MAGE_BODY_WIDTH_RATIO),
+    Math.round(this.frameHeight * SKELETON_MAGE_BODY_HEIGHT_RATIO)
+  )
 
   get bodyProfiles() {
     return defineBodyProfiles(this.body)

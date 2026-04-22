@@ -5,6 +5,11 @@ import {
 import { defineBodyProfiles } from '../bodyProfiles'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
 
+const ZOMBIE_BODY_WIDTH_RATIO = 24 / 64
+const ZOMBIE_BODY_HEIGHT_RATIO = 34 / 64
+const ZOMBIE_FEET_LINE_RATIO = 47 / 64
+const ZOMBIE_BODY_LEFT_RATIO = 20 / 64
+
 /**
  * Abstract base for all zombie variants.
  *

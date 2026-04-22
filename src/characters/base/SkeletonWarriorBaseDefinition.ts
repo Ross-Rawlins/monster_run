@@ -5,6 +5,11 @@ import {
 import { defineBodyProfiles } from '../bodyProfiles'
 import { CharacterAnimationSet, CharacterBodyDefinition } from '../types'
 
+const SKELETON_WARRIOR_BODY_WIDTH_RATIO = 33 / 64
+const SKELETON_WARRIOR_BODY_HEIGHT_RATIO = 31 / 64
+const SKELETON_WARRIOR_FEET_LINE_RATIO = 47 / 64
+const SKELETON_WARRIOR_BODY_LEFT_RATIO = 11 / 64
+
 /**
  * Abstract base for skeleton warrior variants using the 2_Sword weapon set.
  *
@@ -34,13 +39,17 @@ export abstract class SkeletonWarriorBaseDefinition extends AbstractCharacterDef
   readonly jumpVelocity = 520
   readonly canJump = false
   readonly runThreshold = 30
+  readonly frameGroundLine = Math.round(
+    this.frameHeight * SKELETON_WARRIOR_FEET_LINE_RATIO
+  )
+  readonly bodyAnchorX = Math.round(
+    this.frameWidth * SKELETON_WARRIOR_BODY_LEFT_RATIO
+  )
 
-  readonly body: CharacterBodyDefinition = {
-    width: 24,
-    height: 56,
-    offsetX: 20,
-    offsetY: 4,
-  }
+  readonly body: CharacterBodyDefinition = this.buildBody(
+    Math.round(this.frameWidth * SKELETON_WARRIOR_BODY_WIDTH_RATIO),
+    Math.round(this.frameHeight * SKELETON_WARRIOR_BODY_HEIGHT_RATIO)
+  )
 
   get bodyProfiles() {
     return defineBodyProfiles(this.body)

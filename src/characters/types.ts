@@ -54,6 +54,8 @@ export interface CharacterDefinition {
   facingRight?: boolean
   canJump?: boolean
   runThreshold?: number
+  readonly widthInTiles: number
+  readonly heightInTiles: number
   body: CharacterBodyDefinition
   bodyProfiles?: CharacterBodyProfileSet
   animations: CharacterAnimationSet
